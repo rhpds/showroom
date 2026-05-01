@@ -7,6 +7,7 @@
     namespace: openshift-ingress
   register: r_router_rollout
   until:
+    - r_router_rollout is not failed
     - r_router_rollout.resources | length > 0
     - r_router_rollout.resources[0].status.updatedReplicas is defined
     - r_router_rollout.resources[0].status.availableReplicas is defined
