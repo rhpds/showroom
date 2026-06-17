@@ -9,6 +9,8 @@ ansible-runner-api:
   container_name: ansible-runner-api
   hostname: ansible-runner-api
   restart: always
+  ports:
+    - "{{ _runner_port }}:{{ _runner_port }}"
   environment:
     PORT: "{{ _runner_port }}"
     GUID: "{{ guid }}"
