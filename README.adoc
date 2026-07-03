@@ -24,9 +24,6 @@ The docs site covers everything from quick-start guides to full role references,
 |`vm_workload_showroom`
 |Deploys Showroom on VM-based infrastructure (RHEL/Fedora) using rootless Podman containers with TLS, systemd lifecycle management, and tab service support.
 
-|`ocp4_workload_showroom_ocp_integration`
-|Enables OpenShift web console embedding in Showroom iframes by removing security headers.
-
 |`ocp4_workload_ocp_console_embed`
 |Deploys a webhook proxy to allow OCP console embedding without modifying global cluster config.
 
