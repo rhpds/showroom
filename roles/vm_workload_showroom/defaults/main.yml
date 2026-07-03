@@ -22,21 +22,6 @@ showroom_codeserver_image_tag: latest
 showroom_tty_image: quay.io/rhpds/wetty
 showroom_tty_image_tag: v2.7.6
 
-showroom_nookbag_sidecar_image: quay.io/rhpds/nookbag-sidecar
-showroom_nookbag_sidecar_image_tag: v1.0.2
-
-# ----------------------------------------------------------------------
-# Nookbag health check sidecar settings
-# Exposes /healthz (liveness, always 200) and /readyz (readiness, probes
-# content and tab URLs).  Traefik routes both paths to this container.
-# base_url: leave empty to auto-detect reverse-proxy URL from TLS config.
-# Override to point probes at a specific endpoint.
-# ----------------------------------------------------------------------
-showroom_nookbag_sidecar_enable: true
-showroom_nookbag_sidecar_port: 8090
-showroom_nookbag_sidecar_base_url: "http://reverse-proxy:80"
-showroom_nookbag_sidecar_nookbag_base: ""
-
 # ----------------------------------------------------------------------
 # Runtime automation runner (zt-runner)
 # Adds a /stream/ endpoint for SSE-based automation events.

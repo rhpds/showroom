@@ -37,8 +37,7 @@
       antora:
         image: "{{ ocp4_workload_showroom_antora_image | default(omit, true) }}"
       nookbag_sidecar:
-        setup: "{{ (true if ocp4_workload_showroom_nookbag_sidecar_enable | bool else false) | bool | string | lower }}"
-        image: "{{ ocp4_workload_showroom_nookbag_sidecar_image | default(omit, true) }}"
+        setup: "false"
       runtime_automation:
         setup: "{{ (true if ocp4_workload_showroom_runtime_automation_enable | bool else false) | bool | string | lower }}"
         image: "{{ ocp4_workload_showroom_runtime_automation_image | default(omit, true) }}"

@@ -84,11 +84,6 @@ ocp4_workload_showroom_deployer_chart_version: "2.1.*"
 
 ocp4_workload_showroom_zero_touch_bundle: "https://github.com/rhpds/nookbag/releases/download/nookbag-v0.3.7/nookbag-v0.3.7.zip"
 
-# Enable the nookbag health-check sidecar (/healthz, /readyz endpoints)
-ocp4_workload_showroom_nookbag_sidecar_enable: true
-# Override nookbag sidecar image (empty = use chart default)
-ocp4_workload_showroom_nookbag_sidecar_image: ""
-
 # Deploy a runtime automation runner sidecar container.
 # Adds a /stream/ endpoint for SSE-based automation events.
 ocp4_workload_showroom_runtime_automation_enable: false

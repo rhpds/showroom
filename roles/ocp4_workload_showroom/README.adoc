@@ -343,11 +343,6 @@ If these are not pre-populated, `tasks/prepare_variables.yaml` can auto-fill the
 |`https://github.com/rhpds/nookbag/releases/download/nookbag-v0.3.7/nookbag-v0.3.7.zip`
 |URL of the zero-touch automation bundle (nookbag) exposed to the content container.
 
-|`ocp4_workload_showroom_nookbag_sidecar_enable`
-|boolean
-|`true`
-|Enable the nookbag health-check sidecar (`/healthz`, `/readyz` endpoints).
-
 |`ocp4_workload_showroom_runtime_automation_enable`
 |boolean
 |`false`
