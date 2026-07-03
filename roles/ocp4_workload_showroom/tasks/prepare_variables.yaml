@@ -90,21 +90,3 @@
 - name: Set output_dir fact if not defined
   ansible.builtin.set_fact:
     output_dir: "{{ output_dir | default(playbook_dir, true) | default('.', true) }}"
-
-- name: Read user-info.yaml
-  delegate_to: localhost
-  ansible.builtin.slurp:
-    src: "{{ output_dir ~ '/user-info.yaml' }}"
-  register: r_user_info
-  ignore_errors: true
-  failed_when: false
-
-- name: Set fact for user info
-  when: r_user_info is not failed and r_user_info.content is defined
-  ansible.builtin.set_fact:
-    _showroom_user_info: '{{ r_user_info.content | b64decode | from_yaml | default([], true) | join("\n") }}'
-
-- name: Set fact for user info (empty when file doesn't exist)
-  when: r_user_info is failed or r_user_info.content is not defined
-  ansible.builtin.set_fact:
-    _showroom_user_info: ''

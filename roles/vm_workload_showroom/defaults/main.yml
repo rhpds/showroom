@@ -136,11 +136,6 @@ showroom_tab_services: []
   # - "codeserver"
   # - "parasol"
 
-showroom_tab_tty1_username: >-
-  {{
-     showroom_ssh_username | default(f_user_data.get('default_ssh_username')) | default(f_user_data.get('ssh_username'))
-  }}
-
 showroom_dnf_packages:
   - acl
   - ansible-core
