@@ -40,16 +40,16 @@ tags:
 dependencies: {}
 
 # The URL of the originating SCM repository
-repository: https://github.com/agnosticd/showroom
+repository: https://github.com/rhpds/showroom
 
 # The URL to any online docs
-documentation: https://agnosticd.github.io/showroom
+documentation: https://rhpds.github.io/showroom_template_nookbag
 
 # The URL to the homepage of the collection/project
-homepage: https://agnosticd.github.io/showroom
+homepage: https://rhpds.github.io/showroom_template_nookbag
 
 # The URL to the collection issue tracker
-issues: https://github.com/agnosticd/showroom/issues
+issues: https://github.com/rhpds/showroom/issues
 
 # A list of file glob-like patterns used to filter any files or directories that should not be included in the build
 # artifact. A pattern is matched from the relative path of the file or directory of the collection directory. This

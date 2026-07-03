@@ -35,7 +35,7 @@ The docs site covers everything from quick-start guides to full role references,
 
 [source,bash]
 ----
-ansible-galaxy collection install git+https://github.com/agnosticd/showroom.git
+ansible-galaxy collection install git+https://github.com/rhpds/showroom.git
 ----
 
 Or in a `requirements.yml`:
@@ -43,7 +43,7 @@ Or in a `requirements.yml`:
 [source,yaml]
 ----
 collections:
-  - name: https://github.com/agnosticd/showroom.git
+  - name: https://github.com/rhpds/showroom.git
     type: git
     version: v1.4.0
 ----
@@ -65,5 +65,5 @@ collections:
 
 == Support
 
-* **Issues**: https://github.com/agnosticd/showroom/issues
-* **Discussions**: https://github.com/agnosticd/showroom/discussions
+* **Issues**: https://github.com/rhpds/showroom/issues
+* **Discussions**: https://github.com/rhpds/showroom/discussions
