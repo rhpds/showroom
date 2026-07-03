@@ -16,7 +16,7 @@
         name: "{{ _showroom_namespace }}"
         labels:
           guid: "{{ guid }}"
-          creator: agnosticd.core_workloads.ocp4_workload_showroom
+          creator: agnosticd.showroom.ocp4_workload_showroom
   register: r_create_showroom_namespace
   ignore_errors: true
   retries: 20
@@ -38,7 +38,7 @@
         name: "{{ _showroom_namespace }}"
         labels:
           guid: "{{ guid }}"
-          creator: agnosticd.core_workloads.ocp4_workload_showroom
+          creator: agnosticd.showroom.ocp4_workload_showroom
   register: r_create_showroom_project
   retries: 20
   delay: 3

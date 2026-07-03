@@ -8,7 +8,7 @@ f_user_data: {}
 # Showroom service pod images
 # ----------------------------------------------------------------------
 showroom_antora_image: quay.io/rhpds/antora
-showroom_antora_image_tag: v1.2.4
+showroom_antora_image_tag: v1.3.0
 
 showroom_reverse_proxy_image: quay.io/rhpds/traefik
 showroom_reverse_proxy_image_tag: v2
@@ -63,7 +63,7 @@ showroom_parasol_llm_port: 8001 # Uses socat so not 8000, see start script
 # ----------------------------------------------------------------------
 # Content repo with *optional* tag
 # ----------------------------------------------------------------------
-showroom_git_repo: https://github.com/rhpds/showroom_template_nookbag.git
+showroom_git_repo: https://github.com/rhpds/showroom-template.git
 showroom_git_ref: main
 
 # Which Antora Playbook to use in the content repo
@@ -88,8 +88,7 @@ showroom_enable_dev_mode: false
 showroom_antora_enable_dev_mode: false
 
 showroom_primary_path: ""    # this is the postfix to the URL where the UI is available
-showroom_ui: zero-touch               # rhdev (RH Developer old UI) and zero-touch are options, extensible
-showroom_ui_zero_bundle: https://github.com/rhpds/nookbag/releases/download/nookbag-v0.3.6/nookbag-v0.3.6.zip
+showroom_ui_zero_bundle: https://github.com/rhpds/nookbag/releases/download/nookbag-v0.3.7/nookbag-v0.3.7.zip
 showroom_var_inject: true             # allows turning off var injection, many labs may not need it
 
 showroom_primary_port: 443            # TODO: Validate traefik websecure=8443
