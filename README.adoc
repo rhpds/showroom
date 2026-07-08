@@ -24,9 +24,6 @@ The docs site covers everything from quick-start guides to full role references,
 |`vm_workload_showroom`
 |Deploys Showroom on VM-based infrastructure (RHEL/Fedora) using rootless Podman containers with TLS, systemd lifecycle management, and tab service support.
 
-|`ocp4_workload_showroom_ocp_integration`
-|Enables OpenShift web console embedding in Showroom iframes by removing security headers.
-
 |`ocp4_workload_ocp_console_embed`
 |Deploys a webhook proxy to allow OCP console embedding without modifying global cluster config.
 
@@ -38,7 +35,7 @@ The docs site covers everything from quick-start guides to full role references,
 
 [source,bash]
 ----
-ansible-galaxy collection install git+https://github.com/agnosticd/showroom.git
+ansible-galaxy collection install git+https://github.com/rhpds/showroom.git
 ----
 
 Or in a `requirements.yml`:
@@ -46,7 +43,7 @@ Or in a `requirements.yml`:
 [source,yaml]
 ----
 collections:
-  - name: https://github.com/agnosticd/showroom.git
+  - name: https://github.com/rhpds/showroom.git
     type: git
     version: v1.4.0
 ----
@@ -68,5 +65,5 @@ collections:
 
 == Support
 
-* **Issues**: https://github.com/agnosticd/showroom/issues
-* **Discussions**: https://github.com/agnosticd/showroom/discussions
+* **Issues**: https://github.com/rhpds/showroom/issues
+* **Discussions**: https://github.com/rhpds/showroom/discussions

@@ -1,7 +1,7 @@
 ---
 # Automatically generated Showroom Compose Orchestration file
-# via AgnosticD showroom role
-# https://github.com/redhat-cop/agnosticd/tree/development/ansible/roles/showroom
+# via agnosticd.showroom collection
+# https://github.com/rhpds/showroom
 
 version: "3"
 
@@ -14,14 +14,6 @@ services:
   {{ fake_indent_op() | indent(2) }}
 
 {% endfor %}
-
-{% if showroom_nookbag_sidecar_enable | default(true) | bool %}
-{% macro fake_indent_op() %}
-{% include 'service_nookbag_sidecar/service_nookbag_sidecar.j2' ignore missing %}
-{% endmacro %}
-  {{ fake_indent_op() | indent(2) }}
-
-{% endif %}
 
 {% if showroom_runtime_automation_enable | default(false) | bool or showroom_ansible_runner_api | default(false) | bool %}
 {% macro fake_indent_op() %}
