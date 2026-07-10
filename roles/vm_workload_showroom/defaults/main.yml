@@ -153,3 +153,8 @@ showroom_acme_zerossl_eab_hmac_key: ""
 # Let's Encrypt settings
 showroom_acme_letsencrypt_caserver: https://acme-v02.api.letsencrypt.org/directory
 showroom_acme_letsencrypt_acme_challenge: tlsalpn
+
+# ----------------------------------------------------------------------
+# Deploy to a bastion VM instead of running on the current host
+# ----------------------------------------------------------------------
+showroom_deploy_to_bastion: false

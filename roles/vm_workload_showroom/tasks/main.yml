@@ -2,6 +2,10 @@
 
 - name: Deploy the showroom user interface
   when: showroom_deploy | default(true) | bool
+  delegate_to: >-
+    {{ groups['bastions'][0]
+       if (showroom_deploy_to_bastion | default(false) | bool)
+       else omit }}
   block:
 
     - name: Setup OS dependencies, packages
