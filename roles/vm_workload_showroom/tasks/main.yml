@@ -6,6 +6,7 @@
     {{ groups['bastions'][0]
        if (showroom_deploy_to_bastion | default(false) | bool)
        else omit }}
+  become: "{{ true if (showroom_deploy_to_bastion | default(false) | bool) else omit }}"
   block:
 
     - name: Setup OS dependencies, packages
