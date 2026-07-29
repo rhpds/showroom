@@ -28,7 +28,7 @@ showroom_tty_image_tag: v2.7.6
 # ----------------------------------------------------------------------
 showroom_runtime_automation_enable: false
 showroom_runtime_automation_image: quay.io/rhpds/zerotouch-automation
-showroom_runtime_automation_image_tag: v1.3.0
+showroom_runtime_automation_image_tag: v1.3.1
 showroom_runtime_automation_port: 8501
 showroom_runtime_automation_environment_variables: {}
 

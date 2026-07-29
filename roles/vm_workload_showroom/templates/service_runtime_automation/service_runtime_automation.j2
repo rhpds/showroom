@@ -1,7 +1,7 @@
 {% set _provider = (showroom_tls_provider | default(certbot_cert_manager_provider, true) | default('zerossl')) | lower %}
 {% set _entrypoint = 'web' if _provider == 'none' else 'websecure' %}
 {% set _runner_image = showroom_runtime_automation_image | default(showroom_ansible_runner_image, true) | default('quay.io/rhpds/zerotouch-automation') %}
-{% set _runner_tag = showroom_runtime_automation_image_tag | default(showroom_ansible_runner_image_tag, true) | default('v1.3.0') %}
+{% set _runner_tag = showroom_runtime_automation_image_tag | default(showroom_ansible_runner_image_tag, true) | default('v1.3.1') %}
 {% set _runner_port = showroom_runtime_automation_port | default(8501) %}
 {% set _runner_env = f_user_data | default({}) | combine(showroom_runtime_automation_environment_variables | default({})) %}
 ansible-runner-api:
