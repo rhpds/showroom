@@ -29,7 +29,6 @@ reverse-proxy:
     - "--providers.docker.exposedbydefault=false"
     - "--log.level=info"
     - "--accesslog=true"
-    - "--providers.docker.swarmmode=false"
     - "--providers.docker.watch=true"
 {% if _provider == 'none' %}
     - "--entrypoints.web.address=:{{ showroom_http_port | default(80) }}"
