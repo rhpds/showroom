@@ -13,11 +13,14 @@ ansible-runner-api:
     PORT: "{{ _runner_port }}"
     GUID: "{{ guid }}"
     DOMAIN: "{{ showroom_host }}"
+    ANSIBLE_USER: "{{ showroom_ssh_username | default(f_user_data.get('default_ssh_username', '')) | default(f_user_data.get('ssh_username', ''), true) }}"
+    ANSIBLE_PASSWORD: "{{ showroom_ssh_password | default(f_user_data.get('default_ssh_password', '')) | default(f_user_data.get('ssh_password', ''), true) }}"
 {% for key, value in _runner_env.items() %}
     {{ key | upper }}: "{{ value }}"
 {% endfor %}
   volumes:
     - "{{ showroom_user_content_dir }}:/showroom/repo:z,ro"
+    - "{{ showroom_user_content_dir }}/runtime-automation:/app/runtime-automation:z,ro"
     - "{{ showroom_user_home_dir }}/.ssh:/app/.ssh"
   labels:
     - "traefik.enable=true"
