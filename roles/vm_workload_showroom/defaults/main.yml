@@ -20,7 +20,7 @@ showroom_codeserver_image: quay.io/redhat-gpte/showroom/code-server
 showroom_codeserver_image_tag: latest
 
 showroom_tty_image: quay.io/rhpds/wetty
-showroom_tty_image_tag: v2.7.6
+showroom_tty_image_tag: v3.2.1
 
 # ----------------------------------------------------------------------
 # Runtime automation runner (zt-runner)
