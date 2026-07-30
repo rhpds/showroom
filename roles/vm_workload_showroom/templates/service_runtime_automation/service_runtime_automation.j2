@@ -21,6 +21,7 @@ ansible-runner-api:
   volumes:
     - "{{ showroom_user_content_dir }}:/showroom/repo:z,ro"
     - "{{ showroom_user_content_dir }}/runtime-automation:/app/runtime-automation:z,ro"
+    - "{{ showroom_user_content_dir }}/qa-automation:/app/qa-automation:z,ro"
     - "{{ showroom_user_home_dir }}/.ssh:/app/.ssh"
   labels:
     - "traefik.enable=true"
