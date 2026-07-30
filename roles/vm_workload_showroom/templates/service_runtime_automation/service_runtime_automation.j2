@@ -25,14 +25,12 @@ ansible-runner-api:
   labels:
     - "traefik.enable=true"
     - "traefik.http.services.runner.loadbalancer.server.port={{ _runner_port }}"
-    - "traefik.http.services.runner.loadbalancer.responseforwarding.flushinterval=-1"
+    - "traefik.http.services.runner.loadbalancer.responseforwarding.flushinterval=-1s"
     - "traefik.http.routers.runner-stream.entrypoints={{ _entrypoint }}"
 {% if _provider != 'none' %}
     - "traefik.http.routers.runner-stream.tls.certresolver={{ _provider }}"
 {% endif %}
     - "traefik.http.routers.runner-stream.rule=Host(`{{ showroom_host }}`) && PathPrefix(`/stream`)"
-    - "traefik.http.routers.runner-stream.middlewares=runner-stream-stripprefix"
-    - "traefik.http.middlewares.runner-stream-stripprefix.stripprefix.prefixes=/stream"
     - "traefik.http.routers.runner-stream.service=runner"
     - "traefik.http.routers.runner-stream.priority=50"
     - "traefik.http.routers.runner-api.entrypoints={{ _entrypoint }}"
