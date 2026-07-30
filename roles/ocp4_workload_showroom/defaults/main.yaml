@@ -32,6 +32,12 @@ ocp4_workload_showroom_terminal_requests_memory: 256Mi
 ocp4_workload_showroom_terminal_limits_cpu: 500m
 ocp4_workload_showroom_terminal_limits_memory: 1Gi
 
+# Persistent storage for the terminal lab-user home directory
+ocp4_workload_showroom_terminal_storage_enable: true
+ocp4_workload_showroom_terminal_storage_pvc_size: 5Gi
+# Use default StorageClass when empty
+ocp4_workload_showroom_terminal_storage_class: ""
+
 # Override ui-config.yml for the content container (JSON or YAML string, empty = use repo default)
 ocp4_workload_showroom_content_ui_config: ""
 
@@ -55,7 +61,7 @@ ocp4_workload_showroom_antora_enable_dev_mode: false
 ocp4_workload_showroom_terminal_image: quay.io/rhpds/openshift-showroom-terminal-ocp:latest
 
 # Wetty Image
-ocp4_workload_showroom_wetty_image: quay.io/rhpds/wetty:v2.7.6
+ocp4_workload_showroom_wetty_image: quay.io/rhpds/wetty:v3.2.1
 
 # Log into bastion automatically from wetty
 # applies to both primary and seconary wetty terminals
@@ -80,7 +86,7 @@ ocp4_workload_showroom_chart_package_url: https://rhpds.github.io/showroom-deplo
 ocp4_workload_showroom_deployer_chart_name: showroom-single-pod
 
 # Available versions are at https://github.com/rhpds/showroom-deployer/releases
-ocp4_workload_showroom_deployer_chart_version: "2.1.*"
+ocp4_workload_showroom_deployer_chart_version: "2.2.*"
 
 ocp4_workload_showroom_zero_touch_bundle: "https://github.com/rhpds/nookbag/releases/download/nookbag-v0.4.0/nookbag-v0.4.0.zip"
 
@@ -90,6 +96,10 @@ ocp4_workload_showroom_runtime_automation_enable: false
 # Override runtime automation image (empty = use chart default)
 ocp4_workload_showroom_runtime_automation_image: ""
 ocp4_workload_showroom_runtime_automation_environment_variables: {}
+# Ansible credentials for runtime automation playbooks that target remote hosts.
+# Optional; only needed when playbooks SSH to remote hosts.
+ocp4_workload_showroom_runtime_automation_ansible_user: ""
+ocp4_workload_showroom_runtime_automation_ansible_password: ""
 
 # Enable passthrough of agnosticd_passthrough_user_data to individual users
 ocp4_workload_showroom_passthrough_user_data: false
