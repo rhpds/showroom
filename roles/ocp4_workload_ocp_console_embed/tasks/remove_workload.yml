@@ -4,7 +4,7 @@
 # namespace).  They are cleaned up when the cluster is destroyed.
 # Attempting active teardown races with cluster deletion and causes
 # 20-minute timeout failures when DNS is already gone.
-- name: "Removal skipped — cluster teardown handles cleanup"
+- name: "Removal skipped - cluster teardown handles cleanup"
   ansible.builtin.debug:
     msg: >-
       Skipping active removal of console-embed resources.
