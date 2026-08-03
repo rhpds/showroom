@@ -1,6 +1,23 @@
 ---
 
 # Orchestrate showroom containers and setup orchestration pre-requisites
+
+- name: Ensure automation directories exist for volume mounts
+  ansible.builtin.file:
+    path: "{{ showroom_user_content_dir }}/{{ __dir }}"
+    state: directory
+    owner: "{{ showroom_user | default('showroom') }}"
+    group: "{{ showroom_user_group | default('showroom') }}"
+    mode: "u=rwx,g=rx,o=rx"
+  loop:
+    - runtime-automation
+    - qa-automation
+  loop_control:
+    loop_var: __dir
+  when: >-
+    (showroom_runtime_automation_enable | default(false) | bool)
+    or (showroom_ansible_runner_api | default(false) | bool)
+
 - name: Insert showroom orchestration files, compose, scripts, and systemd
   ansible.builtin.template:
     src: "{{ __orchestration.src }}"

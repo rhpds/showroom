@@ -26,6 +26,7 @@ terminal-01:
 {% if showroom_ttys_enable_tmux | bool %}
     - "--command=/usr/local/bin/showroom-tmux tty1"
 {% endif %}
+    - "--base=/wetty/"
     - "--allow-iframe=true"
   labels:
     - "traefik.enable=true"
@@ -35,9 +36,5 @@ terminal-01:
     - "traefik.http.routers.terminal.tls.certresolver={{ _provider }}"
 {% endif %}
     - "traefik.http.routers.terminal.rule=Host(`{{ showroom_host }}`) && PathPrefix(`/wetty`)"
-    - "traefik.http.routers.terminal.middlewares=terminal-stripprefix"
-    - "traefik.http.routers.terminal.middlewares=testheader"
-    - "traefik.http.middlewares.terminal-stripprefix.stripprefix.prefixes=/wetty"
-    - "traefik.http.middlewares.testheader.headers.customrequestheaders.X-Content-Type-Options=false"
     - "traefik.http.routers.terminal.service=terminal"
     - "traefik.http.routers.terminal.priority=10"

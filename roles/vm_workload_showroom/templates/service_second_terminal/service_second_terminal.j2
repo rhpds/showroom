@@ -23,7 +23,3 @@ terminal-02:
     - "traefik.http.routers.terminal2.tls.certresolver={{ _provider }}"
 {% endif %}
     - "traefik.http.routers.terminal2.rule=Host(`{{ showroom_host }}`) && PathPrefix(`/terminal2`)"
-    - "traefik.http.routers.terminal2.middlewares=terminal-stripprefix"
-    - "traefik.http.routers.terminal2.middlewares=testheader"
-    - "traefik.http.middlewares.terminal-stripprefix2.stripprefix.prefixes=/terminal2"
-    - "traefik.http.middlewares.testheader2.headers.customrequestheaders.X-Content-Type-Options=false"
