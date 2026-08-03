@@ -1,80 +1,11 @@
 ---
-# Remove the MutatingWebhookConfiguration first so the webhook stops
-# intercepting route writes before we tear down the serving infrastructure.
-- name: Remove MutatingWebhookConfiguration
-  kubernetes.core.k8s:
-    state: absent
-    api_version: admissionregistration.k8s.io/v1
-    kind: MutatingWebhookConfiguration
-    name: "{{ ocp_console_embed_name }}-oauth-route"
-  register: r_remove_webhook
-  failed_when: false
-
-# Revert the IngressController to default header behaviour.
-# Removing httpHeaders.actions lets the ingress operator restore its
-# defaults (X-Frame-Options: DENY, no custom CSP).
-- name: Reset IngressController httpHeaders
-  kubernetes.core.k8s:
-    api_version: operator.openshift.io/v1
-    kind: IngressController
-    name: default
-    namespace: openshift-ingress-operator
-    state: present
-    definition:
-      spec:
-        httpHeaders:
-          actions:
-            response: []
-
-- name: Wait for router rollout to complete
-  ansible.builtin.include_tasks: wait-router-rollout.yml
-  vars:
-    _ocp_console_embed_wait_reason: IngressController header reset
-
-# Remove the RBAC resources from openshift-authentication (cluster-scoped
-# within that namespace, not cleaned up by namespace deletion below).
-- name: Remove RBAC for route reconciliation
-  kubernetes.core.k8s:
-    state: absent
-    definition: "{{ __ocp_console_embed_rbac }}"
-  loop: "{{ lookup('template', 'rbac.yaml.j2') | from_yaml_all | list }}"
-  loop_control:
-    loop_var: __ocp_console_embed_rbac
-  register: r_remove_rbac
-  failed_when: false
-
-# Deleting the namespace removes the Deployment, Service, ServiceAccount,
-# ConfigMaps, Secrets, and all other namespaced resources.
-- name: Remove namespace
-  kubernetes.core.k8s:
-    state: absent
-    api_version: v1
-    kind: Namespace
-    name: "{{ ocp_console_embed_namespace }}"
-
-- name: Wait for namespace to be fully removed
-  kubernetes.core.k8s_info:
-    api_version: v1
-    kind: Namespace
-    name: "{{ ocp_console_embed_namespace }}"
-  register: r_ns
-  retries: 30
-  delay: 10
-  until: r_ns.resources | length == 0
-
-# With the webhook gone the authentication operator will reconcile the
-# OAuth route back to passthrough on its own. Wait for that to happen
-# so the caller knows the cluster is fully restored.
-- name: Wait for OAuth route to revert to passthrough
-  kubernetes.core.k8s_info:
-    api_version: route.openshift.io/v1
-    kind: Route
-    name: oauth-openshift
-    namespace: openshift-authentication
-  register: r_oauth_route
-  retries: "{{ ocp_console_embed_verify_retries }}"
-  delay: "{{ ocp_console_embed_verify_delay }}"
-  until:
-    - r_oauth_route.resources | length > 0
-    - r_oauth_route.resources[0].spec.tls.termination == 'passthrough'
-  failed_when: false
+# No-op: all resources created by this role live on the cluster itself
+# (MutatingWebhookConfiguration, IngressController patch, RBAC,
+# namespace).  They are cleaned up when the cluster is destroyed.
+# Attempting active teardown races with cluster deletion and causes
+# 20-minute timeout failures when DNS is already gone.
+- name: "Removal skipped — cluster teardown handles cleanup"
+  ansible.builtin.debug:
+    msg: >-
+      Skipping active removal of console-embed resources.
+      All resources are cluster-scoped and will be destroyed with the cluster.
