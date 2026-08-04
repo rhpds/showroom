@@ -1,0 +1,11 @@
+---
+# No-op: all resources created by this role live on the cluster itself
+# (MutatingWebhookConfiguration, IngressController patch, RBAC,
+# namespace).  They are cleaned up when the cluster is destroyed.
+# Attempting active teardown races with cluster deletion and causes
+# 20-minute timeout failures when DNS is already gone.
+- name: "Removal skipped - cluster teardown handles cleanup"
+  ansible.builtin.debug:
+    msg: >-
+      Skipping active removal of console-embed resources.
+      All resources are cluster-scoped and will be destroyed with the cluster.

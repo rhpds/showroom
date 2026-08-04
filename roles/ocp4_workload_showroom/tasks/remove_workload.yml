@@ -1,9 +1,24 @@
 ---
-- name: Prepare Variables
-  ansible.builtin.include_tasks: prepare_variables.yaml
+# Resolve user data without asserting provision-time variables.
+# Only guid and the user list are needed to compute namespace names.
+# The namespace default (showroom-{{ guid | default('00000') }}) from
+# defaults/main.yaml always resolves, even if guid is missing.
+- name: Set showroom_user_data fact for destroy
+  ansible.builtin.set_fact:
+    _showroom_user_data: >-
+      {{ _showroom_user_data | default({})
+         | combine(lookup('agnosticd.core.agnosticd_user_data', '*')) }}
+  failed_when: false
+
+- name: Warn if user_data lookup failed (may orphan per-user namespaces)
+  when: _showroom_user_data | default({}) | length == 0
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: agnosticd_user_data lookup returned nothing.
+      If this is a multi-user environment, per-user namespaces will NOT be cleaned up.
 
 - name: Remove Namespace (single user)
-  when: not _showroom_user_data.users is defined
+  when: _showroom_user_data.users | default(none) is none
   kubernetes.core.k8s:
     host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
     api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
@@ -14,14 +29,29 @@
       kind: Namespace
       metadata:
         name: "{{ ocp4_workload_showroom_namespace }}"
-  ignore_errors: true
-  register: remove_ns_single
-  retries: 20
-  delay: 3
-  until: remove_ns_single is not failed
+  register: r_remove_ns_single
+  retries: 30
+  delay: 10
+  until: r_remove_ns_single is not failed
+  failed_when: false
+
+- name: Wait for namespace to be fully removed (single user)
+  when: _showroom_user_data.users | default(none) is none
+  kubernetes.core.k8s_info:
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    api_version: v1
+    kind: Namespace
+    name: "{{ ocp4_workload_showroom_namespace }}"
+  register: r_ns_single
+  retries: 30
+  delay: 10
+  until: r_ns_single.resources | default([]) | length == 0
+  failed_when: false
 
 - name: Remove Namespaces (multi user)
-  when: _showroom_user_data.users is defined
+  when: _showroom_user_data.users | default(none) is not none
   vars:
     _showroom_user: "{{ _showroom_users_item.key }}"
     _showroom_namespace: "{{ ocp4_workload_showroom_namespace }}-{{ _showroom_user }}"
@@ -35,11 +65,34 @@
       kind: Namespace
       metadata:
         name: "{{ _showroom_namespace }}"
-  ignore_errors: true
-  register: remove_ns_multi
-  retries: 20
-  delay: 3
-  until: remove_ns_multi is not failed
+  register: r_remove_ns_multi
+  retries: 30
+  delay: 10
+  until: r_remove_ns_multi is not failed
+  failed_when: false
+  loop: >-
+    {{ _showroom_user_data.users | dict2items }}
+  loop_control:
+    loop_var: _showroom_users_item
+    label: "{{ _showroom_users_item.key }}"
+
+- name: Wait for namespaces to be fully removed (multi user)
+  when: _showroom_user_data.users | default(none) is not none
+  vars:
+    _showroom_user: "{{ _showroom_users_item.key }}"
+    _showroom_namespace: "{{ ocp4_workload_showroom_namespace }}-{{ _showroom_user }}"
+  kubernetes.core.k8s_info:
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    api_version: v1
+    kind: Namespace
+    name: "{{ _showroom_namespace }}"
+  register: r_ns_multi
+  retries: 30
+  delay: 10
+  until: r_ns_multi.resources | default([]) | length == 0
+  failed_when: false
   loop: >-
     {{ _showroom_user_data.users | dict2items }}
   loop_control:

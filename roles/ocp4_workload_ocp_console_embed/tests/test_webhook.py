@@ -563,6 +563,158 @@ class TestReconcileLoop(unittest.TestCase):
         mock_watch.assert_not_called()
 
 
+class TestDoGET(unittest.TestCase):
+    """Tests for the do_GET HTTP handler (healthz + 404)."""
+
+    def _make_handler(self):
+        handler = webhook.Handler.__new__(webhook.Handler)
+        handler.path = '/healthz'
+        handler.wfile = io.BytesIO()
+        handler._headers_buffer = []
+        handler.request_version = 'HTTP/1.1'
+        handler.responses = webhook.BaseHTTPRequestHandler.responses
+        return handler
+
+    def test_healthz_returns_200_when_service_ca_loaded(self):
+        saved = webhook.SERVICE_CA
+        try:
+            webhook.SERVICE_CA = "fake-ca"
+            handler = self._make_handler()
+            handler.send_response = MagicMock()
+            handler.send_header = MagicMock()
+            handler.end_headers = MagicMock()
+            handler.do_GET()
+            handler.send_response.assert_called_with(200)
+            self.assertEqual(handler.wfile.getvalue(), b'ok')
+        finally:
+            webhook.SERVICE_CA = saved
+
+    def test_healthz_returns_503_when_no_service_ca(self):
+        saved = webhook.SERVICE_CA
+        try:
+            webhook.SERVICE_CA = None
+            handler = self._make_handler()
+            handler.send_response = MagicMock()
+            handler.send_header = MagicMock()
+            handler.end_headers = MagicMock()
+            handler.do_GET()
+            handler.send_response.assert_called_with(503)
+            self.assertIn(b'service CA not loaded', handler.wfile.getvalue())
+        finally:
+            webhook.SERVICE_CA = saved
+
+    def test_unknown_path_returns_404(self):
+        saved = webhook.SERVICE_CA
+        try:
+            webhook.SERVICE_CA = "fake-ca"
+            handler = self._make_handler()
+            handler.path = '/unknown'
+            handler.send_response = MagicMock()
+            handler.send_header = MagicMock()
+            handler.end_headers = MagicMock()
+            handler.do_GET()
+            handler.send_response.assert_called_with(404)
+        finally:
+            webhook.SERVICE_CA = saved
+
+
+class TestDoPOST(unittest.TestCase):
+    """Tests for the do_POST HTTP handler."""
+
+    def _make_handler(self, body_bytes, content_length=None):
+        handler = webhook.Handler.__new__(webhook.Handler)
+        handler.path = '/mutate'
+        handler.rfile = io.BytesIO(body_bytes)
+        handler.wfile = io.BytesIO()
+        handler._headers_buffer = []
+        handler.request_version = 'HTTP/1.1'
+        handler.responses = webhook.BaseHTTPRequestHandler.responses
+        handler.headers = {
+            'Content-Length': str(content_length if content_length is not None else len(body_bytes)),
+        }
+        handler.send_response = MagicMock()
+        handler.send_header = MagicMock()
+        handler.end_headers = MagicMock()
+        return handler
+
+    def test_valid_admission_request(self):
+        saved = webhook.SERVICE_CA
+        try:
+            webhook.SERVICE_CA = "fake-ca"
+            body = json.dumps({
+                'request': {
+                    'uid': 'test-uid',
+                    'object': {
+                        'metadata': {'name': 'other-route', 'namespace': 'default'},
+                        'spec': {'tls': {'termination': 'edge'}},
+                    }
+                }
+            }).encode()
+            handler = self._make_handler(body)
+            handler.do_POST()
+            handler.send_response.assert_called_with(200)
+            output = json.loads(handler.wfile.getvalue().decode())
+            self.assertTrue(output['response']['allowed'])
+            self.assertEqual(output['response']['uid'], 'test-uid')
+        finally:
+            webhook.SERVICE_CA = saved
+
+    def test_rejects_oversized_body(self):
+        handler = self._make_handler(b'', content_length=webhook.MAX_BODY_SIZE + 1)
+        handler.do_POST()
+        handler.send_response.assert_called_with(413)
+        self.assertEqual(handler.wfile.getvalue(), b'')
+
+    def test_malformed_json_returns_allow(self):
+        saved = webhook.SERVICE_CA
+        try:
+            webhook.SERVICE_CA = "fake-ca"
+            handler = self._make_handler(b'not-json')
+            handler.do_POST()
+            handler.send_response.assert_called_with(200)
+            output = json.loads(handler.wfile.getvalue().decode())
+            self.assertTrue(output['response']['allowed'])
+            self.assertEqual(output['response']['uid'], 'unknown')
+        finally:
+            webhook.SERVICE_CA = saved
+
+    def test_missing_uid_returns_allow(self):
+        saved = webhook.SERVICE_CA
+        try:
+            webhook.SERVICE_CA = "fake-ca"
+            body = json.dumps({'request': {}}).encode()
+            handler = self._make_handler(body)
+            handler.do_POST()
+            handler.send_response.assert_called_with(200)
+            output = json.loads(handler.wfile.getvalue().decode())
+            self.assertTrue(output['response']['allowed'])
+        finally:
+            webhook.SERVICE_CA = saved
+
+    def test_exception_in_handle_review_returns_allow(self):
+        saved = webhook.SERVICE_CA
+        try:
+            webhook.SERVICE_CA = "fake-ca"
+            body = json.dumps({
+                'request': {
+                    'uid': 'err-uid',
+                    'object': {
+                        'metadata': {'name': 'oauth-openshift', 'namespace': 'openshift-authentication'},
+                        'spec': {'tls': {'termination': 'passthrough'}},
+                    }
+                }
+            }).encode()
+            handler = self._make_handler(body)
+            handler.handle_review = MagicMock(side_effect=RuntimeError("boom"))
+            handler.do_POST()
+            handler.send_response.assert_called_with(200)
+            output = json.loads(handler.wfile.getvalue().decode())
+            self.assertTrue(output['response']['allowed'])
+            self.assertEqual(output['response']['uid'], 'err-uid')
+        finally:
+            webhook.SERVICE_CA = saved
+
+
 def urllib_error_stub():
     import urllib.error
     return urllib.error.URLError("connection refused")

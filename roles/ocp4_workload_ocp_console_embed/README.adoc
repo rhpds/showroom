@@ -4,21 +4,58 @@ This role deploys the OCP Console Embed workload, which configures the OpenShift
 
 == Variables
 
+=== Required
+
 [cols="1,1,2",options="header"]
 |===
 | Variable | Default | Description
-| `ocp_console_embed_namespace` | `ocp-console-embed` | Namespace to deploy resources into.
-| `ocp_console_embed_name` | `ocp-console-embed` | Base name for resources.
-| `ocp_console_embed_image` | `registry.access.redhat.com/ubi10/python-312-minimal:10.1` | Image to use for the webhook.
-| `ocp_console_embed_domain` | `""` | Base domain of the OpenShift cluster. Falls back to `openshift_cluster_ingress_domain`, `sandbox_openshift_apps_domain`, or `showroom_openshift_apps_domain`.
+| `ocp_console_embed_domain` | `""` | Base domain of the OpenShift cluster (e.g. `apps.cluster.example.com`). Falls back to `openshift_cluster_ingress_domain`, `sandbox_openshift_apps_domain`, or `showroom_openshift_apps_domain`.
+| `ACTION` | _(none)_ | Must be `provision` or `destroy`. Follows the agnosticD workload dispatch convention.
 |===
+
+=== Optional
+
+[cols="1,1,2",options="header"]
+|===
+| Variable | Default | Description
+
+| `ocp_console_embed_namespace` | `ocp-console-embed` | Namespace to deploy resources into.
+| `ocp_console_embed_name` | `ocp-console-embed` | Base name for all created resources.
+| `ocp_console_embed_image` | `registry.access.redhat.com/ubi10/python-312-minimal:10.1` | Container image for the webhook pod.
+
+| `ocp_console_embed_service_ca_wait_retries` | `30` | Retry count when waiting for the service CA operator to provision a TLS Secret or inject the CA bundle.
+| `ocp_console_embed_service_ca_wait_delay` | `5` | Delay (seconds) between retries for service CA provisioning.
+
+| `ocp_console_embed_webhook_wait_retries` | `60` | Retry count when waiting for the webhook Deployment pod to become ready.
+| `ocp_console_embed_webhook_wait_delay` | `5` | Delay (seconds) between retries for webhook readiness.
+
+| `ocp_console_embed_watch_timeout` | `300` | Server-side timeout (seconds) for the Kubernetes watch on the oauth-openshift route. The reconciler reconnects automatically when this expires.
+
+| `ocp_console_embed_router_wait_retries` | `120` | Retry count when waiting for the router rollout after IngressController changes.
+| `ocp_console_embed_router_wait_delay` | `10` | Delay (seconds) between retries for router rollout. Large clusters with 10+ replicas may need the full window.
+
+| `ocp_console_embed_verify_retries` | `12` | Retry count when verifying the OAuth route stays reencrypt after auth operator reconciliation.
+| `ocp_console_embed_verify_delay` | `5` | Delay (seconds) between verification retries.
+
+| `ocp_console_embed_webhook_readiness_initial_delay` | `3` | Initial delay (seconds) for the webhook readiness probe.
+| `ocp_console_embed_webhook_readiness_period` | `10` | Period (seconds) for the webhook readiness probe.
+| `ocp_console_embed_webhook_liveness_initial_delay` | `5` | Initial delay (seconds) for the webhook liveness probe.
+| `ocp_console_embed_webhook_liveness_period` | `15` | Period (seconds) for the webhook liveness probe.
+|===
+
+== Prerequisites
+
+- OpenShift 4.x with the service CA operator enabled (default on all standard installations).
+- Ansible >= 2.14 with the `kubernetes.core` collection installed.
 
 == Description
 
 The role deploys:
+
 - A MutatingWebhook that intercepts Route updates to `oauth-openshift` and forces `reencrypt` TLS.
-- Patches the default IngressController to strip `X-Frame-Options` and set `Content-Security-Policy`.
+- Patches the *default* IngressController to strip `X-Frame-Options` and set `Content-Security-Policy` (this affects all routes served by the default ingress, not just OAuth).
 - Patches the `oauth-openshift` Route to use `reencrypt` TLS immediately (maintained by the webhook).
+- On clusters where router replicas exceed schedulable worker nodes, scales the IngressController down to prevent rollout deadlocks (reverted on destroy).
 
 == Testing
 
