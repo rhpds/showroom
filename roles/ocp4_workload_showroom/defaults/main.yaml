@@ -60,7 +60,7 @@ ocp4_workload_showroom_antora_enable_dev_mode: false
 # - quay.io/rhpds/openshift-showroom-terminal-ocp:latest
 # - quay.io/rhpds/openshift-showroom-terminal-rosa:latest
 # - quay.io/rhpds/openshift-showroom-terminal-aro:latest
-ocp4_workload_showroom_terminal_image: quay.io/rhpds/openshift-showroom-terminal-ocp:4.20-2026-08-05
+ocp4_workload_showroom_terminal_image: quay.io/rhpds/openshift-showroom-terminal-ocp:4.20
 
 # Wetty Image
 ocp4_workload_showroom_wetty_image: quay.io/rhpds/wetty:v3.2.1
