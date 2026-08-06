@@ -52,7 +52,7 @@
              | default(showroom_openshift_apps_domain, true)
              | default('', true) }}
       terminal:
-        setup: "{{ (true if ocp4_workload_showroom_terminal_type == 'showroom' else false) | bool | string | lower }}"
+        setup: "{{ (ocp4_workload_showroom_terminal_type in ['showroom', 'ocp-terminal', 'both']) | string | lower }}"
         image: "{{ ocp4_workload_showroom_terminal_image }}"
         resources:
           requests:
@@ -66,7 +66,7 @@
           pvcSize: "{{ ocp4_workload_showroom_terminal_storage_pvc_size }}"
           storageClass: "{{ ocp4_workload_showroom_terminal_storage_class }}"
       wetty:
-        setup: "{{ (true if ocp4_workload_showroom_terminal_type == 'wetty' else false) | bool | string | lower }}"
+        setup: "{{ (ocp4_workload_showroom_terminal_type in ['wetty', 'both']) | string | lower }}"
         image: "{{ ocp4_workload_showroom_wetty_image }}"
         resources:
           requests:
