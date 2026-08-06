@@ -11,6 +11,24 @@
       become: true
       become_user: "{{ showroom_user }}"
 
+    - name: Check if runtime-automation directory exists in content repo
+      ansible.builtin.stat:
+        path: "{{ showroom_user_content_dir }}/runtime-automation"
+      register: r_runtime_automation_dir
+      when: showroom_ansible_runner_api | default(false) | bool
+
+    - name: Fail when runtime-automation dir is missing but ansible runner API is enabled
+      ansible.builtin.fail:
+        msg: >-
+          showroom_ansible_runner_api is true but the content repo
+          '{{ showroom_git_repo }}' (ref: {{ showroom_git_ref | default('main') }})
+          does not contain a runtime-automation/ directory.
+          Add runtime-automation/ with at least module-XX/solve.yml and
+          module-XX/validation.yml stubs, or set showroom_ansible_runner_api: false.
+      when:
+        - showroom_ansible_runner_api | default(false) | bool
+        - not r_runtime_automation_dir.stat.exists
+
     - name: Setup and inject userdata into showroom repo
       when: showroom_var_inject | default(true) | bool
       block:
