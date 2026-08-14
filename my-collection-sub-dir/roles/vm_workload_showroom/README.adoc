@@ -1,0 +1,386 @@
+= vm_workload_showroom
+
+An Ansible role that turns a RHEL/Fedora host (bastion, lab VM, etc.) into a Showroom instance using **rootless Podman**.
+Showroom is a web UI for labs/workshops that combines rendered Antora documentation with embedded terminals and optional IDE / helper services.
+
+== Overview
+
+`vm_workload_showroom` transforms a standard RHEL/Fedora host into a self-contained Showroom environment:
+
+* Serves Antora/AsciiDoc lab content over HTTP/HTTPS
+* Optionally exposes one or more SSH-based web terminals and Code Server
+* Manages TLS automatically via Traefik and ACME (ZeroSSL or Let's Encrypt)
+
+Target audience is **developers and content authors** who want to deploy lab/workshop UIs on VMs or bare-metal without OpenShift.
+For OpenShift-based deployments, use `ocp4_workload_showroom` instead.
+
+== What It Does
+
+* **System preparation**
+** Installs OS and Python dependencies (Podman, Ansible Core, Git, etc.)
+** Allows unprivileged ports for rootless containers
+* **User & SSH setup**
+** Creates dedicated `showroom` user (UID 1888) and working directories
+** Enables rootless Podman via user systemd + `podman.socket`
+** Configures SSH access for lab users (password or SSH key)
+* **Content pipeline**
+** Clones your Antora/AsciiDoc content repo
+** Optionally injects AgnosticD `user_data` as Antora attributes
+** Renders HTML via an Antora container into `showroom_user_build_dir`
+* **Service orchestration**
+** Generates a Podman Compose file for Traefik + Showroom + optional tab services
+** Installs and manages a `showroom.service` systemd unit
+* **TLS & verification**
+** Obtains and renews certificates via Traefik ACME (ZeroSSL or Let's Encrypt)
+** Verifies TLS with OpenSSL and retries on failure
+** Publishes final lab URL via `agnosticd_user_info` when AgnosticD is present
+
+== How It Works
+
+=== Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│ Host System (RHEL/Fedora)                          │
+│                                                     │
+│  ┌───────────────────────────────────────────────┐ │
+│  │ Systemd Service (showroom.service)            │ │
+│  │  - wraps podman-compose start/stop            │ │
+│  │                                               │ │
+│  │  ┌─────────────────────────────────────────┐ │ │
+│  │  │ Rootless Podman (showroom user)         │ │ │
+│  │  │                                         │ │ │
+│  │  │  ┌──────────┐  ┌──────────┐           │ │ │
+│  │  │  │ Traefik  │  │ Showroom │           │ │ │
+│  │  │  │  (proxy) │──│  (httpd) │           │ │ │
+│  │  │  └──────────┘  └──────────┘           │ │ │
+│  │  │       │                                │ │ │
+│  │  │  Optional Tab Services:               │ │ │
+│  │  │  ┌──────────┐  ┌──────────┐           │ │ │
+│  │  │  │  Wetty   │  │  Codesrv │           │ │ │
+│  │  │  │(terminal)│  │  Parasol │           │ │ │
+│  │  │  └──────────┘  └──────────┘           │ │ │
+│  │  └─────────────────────────────────────────┘ │ │
+│  └───────────────────────────────────────────────┘ │
+│                                                     │
+│  File System (defaults):                            │
+│  /opt/showroom/content        - cloned git repo     │
+│  /opt/showroom/build          - rendered HTML       │
+│  /opt/showroom/orchestration  - compose + acme.json │
+└─────────────────────────────────────────────────────┘
+```
+
+=== Execution flow
+
+[cols="1,2,3",options="header"]
+|===
+|Stage |What happens |Key files
+
+|System prep
+|Install OS and Python deps, allow unprivileged ports, enable rootless Podman
+|`tasks/10-showroom-dependencies.yml`, `tasks/20-showroom-user-setup.yml`
+
+|User & SSH
+|Create `showroom` user, configure SSH for lab users (password or sshkey), optional tmux
+|`tasks/22-showroom-users-security.yml`
+
+|Content pipeline
+|Clone Antora repo, optionally inject AgnosticD user data into `content/antora.yml`, render docs via Antora container into `showroom_user_build_dir`
+|`tasks/30-showroom-clone-and-inject.yml`, `tasks/40-showroom-render.yml`
+
+|Service orchestration
+|Generate Podman Compose from Jinja templates, wire Traefik + Showroom + optional tab services, install `showroom.service`
+|`templates/compose_default_template.j2`, `templates/base_service_traefik_httpd/*`, `templates/service_*/*`, `tasks/50-showroom-service.yml`
+
+|TLS & verification
+|Issue/renew certs via Traefik ACME, verify TLS with OpenSSL, output final URL via `agnosticd_user_info` (if available)
+|`defaults/main.yml` (TLS vars), `tasks/verify_tls_attempt.yml`, `tasks/60-showroom-verify.yml`
+|===
+
+=== Content rendering
+
+1. Clone repo into `showroom_user_content_dir` (default `/opt/showroom/content`).
+2. If `showroom_var_inject` is true and AgnosticD is present, merge `agnosticd_user_data` into `content/antora.yml` attributes.
+3. Determine Antora playbook:
+   * If `showroom_content_antora_playbook == default-site.yml` (default), prefer `default-site.yml`, fall back to `site.yml`.
+   * Otherwise use the exact filename provided.
+4. Run Antora in a short-lived container (`antora-builder`), writing HTML into `showroom_user_build_dir` (default `/opt/showroom/build`).
+5. The Showroom HTTPd container mounts `showroom_user_build_dir` and serves content via Traefik.
+
+=== TLS / ACME
+
+Traefik handles ACME for you:
+
+* **ZeroSSL (default)**: HTTP-01 challenge on `showroom_http_port` (default 80), requires EAB `kid` + `hmac` secrets.
+* **Let's Encrypt**: TLS-ALPN-01 on `showroom_primary_port` (default 443), no EAB.
+* **none**: disables TLS; Traefik serves HTTP only on `showroom_http_port`.
+
+Issued certs and keys live in `{{ showroom_user_orchestration_dir }}/acme.json` and are post-processed as needed (for example by the optional Parasol service).
+
+== Configuration
+
+Defaults live in `defaults/main.yml`. This section lists the most important inputs for day-to-day use.
+
+=== Core variables
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`showroom_deploy`
+|bool
+|`true`
+|Guard for the whole role (set to `false` to skip deployment).
+
+|`showroom_host`
+|string
+|_none_ (derived from AgnosticD when available)
+|Public hostname for the Showroom instance; used in TLS and in user-facing URLs.
+
+|`showroom_git_repo`
+|string
+|`https://github.com/rhpds/showroom_template_nookbag.git`
+|Git repo with Antora/AsciiDoc content.
+
+|`showroom_git_ref`
+|string
+|`main`
+|Branch / tag / commit to checkout.
+
+|`showroom_content_antora_playbook`
+|string
+|`default-site.yml`
+|Antora site file. When set to the default, the role auto-detects between `default-site.yml` and `site.yml`.
+|===
+
+=== TLS and ACME
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`showroom_tls_provider`
+|string
+|`zerossl`
+|`zerossl`, `letsencrypt`, or `none`.
+
+|`showroom_acme_email`
+|string
+|`john.doe@rhdp.net`
+|ACME account email (required unless `showroom_tls_provider: none`).
+
+|`showroom_http_port`
+|int
+|`80`
+|Host port for HTTP (also used for ZeroSSL HTTP-01 challenge).
+
+|`showroom_primary_port`
+|int
+|`443`
+|Host port for HTTPS.
+|===
+
+ZeroSSL-specific:
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`showroom_acme_zerossl_caserver`
+|string
+|`https://acme.zerossl.com/v2/DV90`
+|ZeroSSL ACME directory URL.
+
+|`showroom_acme_zerossl_eab_kid`
+|string
+|`""`
+|EAB key id from ZeroSSL.
+
+|`showroom_acme_zerossl_eab_hmac_key`
+|string
+|`""`
+|EAB HMAC key from ZeroSSL.
+
+|`showroom_acme_zerossl_acme_challenge`
+|string
+|`http`
+|Challenge type (HTTP-01).
+|===
+
+Let's Encrypt-specific:
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`showroom_acme_letsencrypt_caserver`
+|string
+|`https://acme-v02.api.letsencrypt.org/directory`
+|Let's Encrypt ACME directory URL.
+
+|`showroom_acme_letsencrypt_acme_challenge`
+|string
+|`tlsalpn`
+|Challenge type (TLS-ALPN-01).
+|===
+
+=== Optional tab services (terminals, IDE, Parasol)
+
+Tab services are added to the generated compose file via `templates/service_*/service_*.j2`.
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`showroom_tab_services`
+|list
+|`[]`
+|List of extra services to enable. Known values: `single_terminal`, `second_terminal`, `codeserver`, `parasol`.
+
+|`showroom_ssh_method`
+|string
+|`password`
+|`password` or `sshkey` – how Wetty connects to the target host(s).
+
+|`showroom_lab_users`
+|list
+|`["rhel"]`
+|OS accounts created/adjusted for lab SSH access.
+
+|`showroom_ttys_enable_tmux`
+|bool
+|`false`
+|If `true`, terminals auto-launch a named `tmux` session via `showroom-tmux`.
+|===
+
+Single-terminal SSH details (when `single_terminal` is enabled):
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`showroom_ssh_username`
+|string
+|from `f_user_data` when available
+|SSH username for the primary terminal.
+
+|`showroom_ssh_password`
+|string
+|from `f_user_data` when available
+|SSH password (when `showroom_ssh_method: password`).
+
+|`showroom_ssh_host`
+|string
+|`host.containers.internal`
+|SSH target host.
+
+|`showroom_ssh_port`
+|int
+|`22`
+|SSH target port.
+|===
+
+=== User, paths, and images
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`showroom_user`
+|string
+|`showroom`
+|System user that owns content and runs rootless containers.
+
+|`showroom_user_home_dir`
+|string
+|`/opt/showroom`
+|Base directory for all Showroom files.
+
+|`showroom_user_content_dir`
+|string
+|`{{ showroom_user_home_dir }}/content`
+|Git checkout of the content repo.
+
+|`showroom_user_build_dir`
+|string
+|`{{ showroom_user_home_dir }}/build`
+|Antora HTML output mounted into the HTTPd container.
+
+|`showroom_user_orchestration_dir`
+|string
+|`{{ showroom_user_home_dir }}/orchestration`
+|Generated compose file and `acme.json`.
+
+|`showroom_antora_image[:tag]`
+|string
+|`quay.io/rhpds/antora:v1.0.1`
+|Antora builder image.
+
+|`showroom_reverse_proxy_image[:tag]`
+|string
+|`quay.io/rhpds/traefik:v2`
+|Traefik reverse proxy image.
+
+|`showroom_httpd_image[:tag]`
+|string
+|`quay.io/rhpds/showroom-content:v1.3.0`
+|Showroom HTTPd image.
+|===
+
+== Examples
+
+=== Minimal HTTP-only deployment
+
+[source,yaml]
+----
+- name: Deploy Showroom (HTTP only)
+  hosts: bastion
+  become: true
+  roles:
+    - role: agnosticd.showroom.vm_workload_showroom
+      vars:
+        showroom_tls_provider: none
+        showroom_http_port: 8080
+        showroom_host: bastion.example.com
+        showroom_git_repo: https://github.com/yourorg/your-lab-content.git
+----
+
+=== HTTPS with ZeroSSL (recommended default)
+
+[source,yaml]
+----
+- name: Deploy Showroom with ZeroSSL TLS
+  hosts: bastion
+  become: true
+  roles:
+    - role: agnosticd.showroom.vm_workload_showroom
+      vars:
+        showroom_host: lab.example.com
+
+        showroom_tls_provider: zerossl
+        showroom_acme_email: admin@example.com
+        showroom_acme_zerossl_eab_kid: "{{ lookup('env', 'ZEROSSL_EAB_KID') }}"
+        showroom_acme_zerossl_eab_hmac_key: "{{ lookup('env', 'ZEROSSL_EAB_HMAC') }}"
+
+        showroom_git_repo: https://github.com/yourorg/production-content.git
+        showroom_git_ref: main
+----
+
+=== With AgnosticD integration
+
+When run from an AgnosticD environment, `showroom_host` and SSH credentials can be derived from inventory/user-data:
+
+[source,yaml]
+----
+- name: Deploy Showroom on bastion
+  hosts: bastions
+  become: true
+  tasks:
+    - name: Run vm_workload_showroom
+      include_role:
+        name: agnosticd.showroom.vm_workload_showroom
+      vars:
+        showroom_git_repo: "{{ lab_content_repo }}"
+        showroom_tab_services:
+          - single_terminal
+----

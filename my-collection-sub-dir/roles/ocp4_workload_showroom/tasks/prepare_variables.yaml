@@ -1,0 +1,92 @@
+---
+- name: Check for required variables
+  ansible.builtin.assert:
+    that:
+    - guid | default('') | length > 0
+    - ocp4_workload_showroom_content_git_repo | default('') | length > 0
+    quiet: true
+    fail_msg: Required variables (guid or ocp4_workload_showroom_content_git_repo) not defined
+
+- name: Set showroom_user_data fact from lookup - global value (before passthrough)
+  ansible.builtin.set_fact:
+    _showroom_user_data: "{{ _showroom_user_data | combine(lookup('agnosticd.core.agnosticd_user_data', '*')) }}"
+
+- name: Determine number of users for passthrough
+  when:
+  - agnosticd_passthrough_user_data is defined
+  - ocp4_workload_showroom_passthrough_user_data | default(false) | bool
+  ansible.builtin.set_fact:
+    _passthrough_num_users: "{{ (_showroom_user_data.users | length) if (_showroom_user_data.users is defined) else (num_users | default(0) | int) }}"
+
+- name: Set passthrough variables to per-user data, if desired
+  when:
+  - agnosticd_passthrough_user_data is defined
+  - ocp4_workload_showroom_passthrough_user_data | default(false) | bool
+  - _passthrough_num_users | int > 0
+  agnosticd.core.agnosticd_user_info:
+    data: "{{ agnosticd_passthrough_user_data | default('', true) }}"
+    user: "user{{ n }}"
+  loop: "{{ range(1, _passthrough_num_users | int + 1) | list }}"
+  loop_control:
+    loop_var: n
+
+- name: Set showroom_user_data fact from lookup - global value (after passthrough)
+  ansible.builtin.set_fact:
+    _showroom_user_data: "{{ _showroom_user_data | combine(lookup('agnosticd.core.agnosticd_user_data', '*')) }}"
+
+- name: Auto-populate bastion connection info into _showroom_user_data when not already set
+  when:
+  - bastion_ansible_host is defined
+  - bastion_ansible_user is defined
+  - _showroom_user_data.bastion_public_hostname is not defined
+    or _showroom_user_data.bastion_public_hostname == 'test_hostname'
+  ansible.builtin.set_fact:
+    _showroom_user_data: >-
+      {{
+        _showroom_user_data | combine({
+          'bastion_public_hostname': bastion_ansible_host,
+          'bastion_ssh_user_name': bastion_ansible_user,
+          'bastion_ssh_password': bastion_ansible_ssh_pass,
+          'bastion_ssh_port': (bastion_ansible_port | default(22)),
+          'bastion_ssh_command': (
+            'ssh ' ~ (bastion_ansible_user | string)
+            ~ '@' ~ (bastion_ansible_host | string)
+            ~ ' -p ' ~ ((bastion_ansible_port | default(22)) | string)
+          )
+        }, recursive=True)
+      }}
+
+- name: Auto-populate OpenShift cluster info into _showroom_user_data when not already set
+  when:
+  - openshift_cluster_ingress_domain is defined
+  - _showroom_user_data.openshift_cluster_ingress_domain is not defined
+  ansible.builtin.set_fact:
+    _showroom_user_data: >-
+      {{
+        _showroom_user_data | combine(
+          {
+            'openshift_cluster_ingress_domain': openshift_cluster_ingress_domain,
+            'openshift_console_url': openshift_console_url
+              | default('https://console-openshift-console.' ~ openshift_cluster_ingress_domain),
+          }, recursive=True)
+      }}
+
+- name: Build global (non-user) slice of user_data
+  ansible.builtin.set_fact:
+    _showroom_global_data: >-
+      {{
+        _showroom_user_data
+        | dict2items
+        | rejectattr('key', 'equalto', 'users')
+        | list
+        | items2dict
+      }}
+
+- name: Set fact _user_count
+  when: _showroom_user_data.users is defined
+  ansible.builtin.set_fact:
+    _user_count: "{{ _showroom_user_data['users'] | length }}"
+
+- name: Set output_dir fact if not defined
+  ansible.builtin.set_fact:
+    output_dir: "{{ output_dir | default(playbook_dir, true) | default('.', true) }}"

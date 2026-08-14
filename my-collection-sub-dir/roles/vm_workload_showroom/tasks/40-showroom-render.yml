@@ -1,0 +1,106 @@
+---
+
+# Determine which antora playbook to use
+# Default (site.yml): try site.yml first, fall back to legacy default-site.yml
+# If user has overridden showroom_content_antora_playbook, use that directly
+- name: Check if site.yml exists (when using default)
+  ansible.builtin.stat:
+    path: "{{ showroom_user_content_dir }}/site.yml"
+  register: site_yml_stat
+  when: showroom_content_antora_playbook == "site.yml"
+
+- name: Check if default-site.yml exists (legacy fallback)
+  ansible.builtin.stat:
+    path: "{{ showroom_user_content_dir }}/default-site.yml"
+  register: default_site_yml_stat
+  when:
+    - showroom_content_antora_playbook == "site.yml"
+    - not site_yml_stat.stat.exists | default(false)
+
+- name: Set antora playbook to use (auto-detect for default)
+  ansible.builtin.set_fact:
+    showroom_antora_playbook_to_use: >-
+      {%- if showroom_content_antora_playbook == "site.yml" -%}
+        {%- if site_yml_stat is defined and site_yml_stat.stat.exists -%}
+          site.yml
+      {%- elif default_site_yml_stat is defined and default_site_yml_stat.stat.exists -%}
+          default-site.yml
+      {%- else -%}
+          site.yml
+      {%- endif -%}
+      {%- else -%}
+        {{ showroom_content_antora_playbook }}
+      {%- endif -%}
+
+- name: Check if configured antora playbook exists
+  ansible.builtin.stat:
+    path: "{{ showroom_user_content_dir }}/{{ showroom_antora_playbook_to_use }}"
+  register: antora_playbook_stat
+
+- name: Fail when antora playbook is missing
+  ansible.builtin.fail:
+    msg: "Required file not found: {{ showroom_user_content_dir }}/{{ showroom_antora_playbook_to_use }}"
+  when: not antora_playbook_stat.stat.exists
+
+- name: Ensure showroom_user_build_dir exists
+  ansible.builtin.file:
+    path: "{{ showroom_user_build_dir }}"
+    state: directory
+    owner: "{{ showroom_user }}"
+    group: "{{ showroom_user }}"
+    mode: "u=rwx,g=rwx,o=rx"
+
+- name: Ensure showroom_user_content_dir has correct permissions for rootless podman
+  ansible.builtin.file:
+    path: "{{ showroom_user_content_dir }}"
+    state: directory
+    owner: "{{ showroom_user }}"
+    group: "{{ showroom_user }}"
+    mode: "u=rwx,g=rwx,o=rx"
+
+- name: Remove existing antora-builder container if it exists
+  containers.podman.podman_container:
+    name: antora-builder
+    state: absent
+  become: true
+  become_user: "{{ showroom_user }}"
+  failed_when: false
+
+- name: Render asciidoc via antora container using a custom site.yml
+  containers.podman.podman_container:
+    name: antora-builder
+    image: "{{ showroom_antora_image }}:{{ showroom_antora_image_tag }}"
+    env:
+      WAIT_FOR_GIT_CLONER: "false"
+      ANTORA_SITE_FILE: "{{ showroom_antora_playbook_to_use }}"
+      ANTORA_ENABLE_DEV_MODE: "{{ (showroom_antora_enable_dev_mode | bool or showroom_enable_dev_mode | bool) | string | lower }}"
+      ANTORA_UI_BUNDLE_URL: "{{ showroom_antora_ui_bundle_url }}"
+      ANTORA_KEY_NAVBAR_LOGO: "{{ showroom_content_antora_navbar_logo }}"
+    detach: false
+    working_dir: "/files"
+    volumes:
+      - "{{ showroom_user_content_dir }}:/files:z,U"
+      - "{{ showroom_user_build_dir }}:/output:z,U"
+  become: true
+  become_user: "{{ showroom_user }}"
+  register: r_podman_run_antora
+  tags:
+    - showroom-render
+
+- name: Debug Render asciidoc via antora container
+  ansible.builtin.debug:
+    var: r_podman_run_antora
+    verbosity: 2
+
+- name: Set showroom_host when CNV route header removal is disabled
+  when:
+    - showroom_host is not defined
+    - openshift_cnv_route_remove_x_frame_options_header is defined
+    - not (openshift_cnv_route_remove_x_frame_options_header | bool)
+  ansible.builtin.set_fact:
+    showroom_host: "{{ groups['bastions'][0] | regex_replace('\\..*$') }}-{{ guid }}{{ subdomain_base_suffix }}"
+
+- name: Set showroom_host if not defined
+  when: showroom_host is not defined
+  ansible.builtin.set_fact:
+    showroom_host: "{{ groups['bastions'][0] | regex_replace('\\..*$') }}.{{ guid }}{{ subdomain_base_suffix }}"

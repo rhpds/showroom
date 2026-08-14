@@ -1,0 +1,240 @@
+---
+- name: Set ocp_console_embed_domain fallback
+  ansible.builtin.set_fact:
+    ocp_console_embed_domain: >-
+      {{ (ocp_console_embed_domain
+         | default(openshift_cluster_ingress_domain
+           | default(sandbox_openshift_apps_domain, true)
+           | default(showroom_openshift_apps_domain, true)
+           | default('', true), true)) | trim }}
+
+- name: Fail if ocp_console_embed_domain is not set
+  ansible.builtin.fail:
+    msg: >-
+      ocp_console_embed_domain is empty. Set ocp_console_embed_domain,
+      openshift_cluster_ingress_domain, sandbox_openshift_apps_domain,
+      or showroom_openshift_apps_domain.
+  when: ocp_console_embed_domain | length == 0
+
+- name: Ensure namespace exists
+  kubernetes.core.k8s:
+    api_version: v1
+    kind: Namespace
+    name: "{{ ocp_console_embed_namespace }}"
+    state: present
+
+# Deploy resources that trigger async service CA operator provisioning:
+#   - Service annotation -> TLS Secret
+#   - ConfigMap annotation -> CA bundle injection
+- name: Deploy RBAC for route reconciliation
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ __ocp_console_embed_rbac }}"
+  loop: "{{ lookup('template', 'rbac.yaml.j2') | from_yaml_all | list }}"
+  loop_control:
+    loop_var: __ocp_console_embed_rbac
+
+- name: Deploy webhook pre-requisite resources
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', __ocp_console_embed_template) }}"
+    namespace: "{{ ocp_console_embed_namespace }}"
+  loop:
+    - serviceaccount.yaml.j2
+    - webhook-script.yaml.j2
+    - webhook-cabundle.yaml.j2
+    - webhook-service.yaml.j2
+  loop_control:
+    loop_var: __ocp_console_embed_template
+
+- name: Wait for TLS Secret to be provisioned by service CA operator
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    name: "{{ ocp_console_embed_name }}-webhook-tls"
+    namespace: "{{ ocp_console_embed_namespace }}"
+  register: r_tls_secret
+  until:
+    - r_tls_secret.resources | length > 0
+    - r_tls_secret.resources[0].data['tls.crt'] is defined
+    - r_tls_secret.resources[0].data['tls.crt'] | length > 0
+  retries: "{{ ocp_console_embed_service_ca_wait_retries }}"
+  delay: "{{ ocp_console_embed_service_ca_wait_delay }}"
+
+- name: Wait for service CA bundle to be injected into ConfigMap
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    name: "{{ ocp_console_embed_name }}-service-ca"
+    namespace: "{{ ocp_console_embed_namespace }}"
+  register: r_ca_bundle
+  until:
+    - r_ca_bundle.resources | length > 0
+    - r_ca_bundle.resources[0].data['service-ca.crt'] is defined
+    - r_ca_bundle.resources[0].data['service-ca.crt'] | length > 0
+  retries: "{{ ocp_console_embed_service_ca_wait_retries }}"
+  delay: "{{ ocp_console_embed_service_ca_wait_delay }}"
+
+- name: Deploy webhook Deployment
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'webhook-deployment.yaml.j2') }}"
+    namespace: "{{ ocp_console_embed_namespace }}"
+
+- name: Wait for webhook Deployment to be ready
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ ocp_console_embed_name }}-webhook"
+    namespace: "{{ ocp_console_embed_namespace }}"
+  register: r_webhook_deploy
+  until:
+    - r_webhook_deploy.resources | default([]) | length > 0
+    - r_webhook_deploy.resources[0].status.readyReplicas is defined
+    - r_webhook_deploy.resources[0].status.readyReplicas >= 1
+  retries: "{{ ocp_console_embed_webhook_wait_retries }}"
+  delay: "{{ ocp_console_embed_webhook_wait_delay }}"
+
+# Register the webhook only after the pod is ready to serve requests.
+- name: Deploy MutatingWebhookConfiguration
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('template', 'webhook-config.yaml.j2') }}"
+
+- name: Wait for caBundle injection in MutatingWebhookConfiguration
+  kubernetes.core.k8s_info:
+    api_version: admissionregistration.k8s.io/v1
+    kind: MutatingWebhookConfiguration
+    name: "{{ ocp_console_embed_name }}-oauth-route"
+  register: r_webhook_config
+  until:
+    - r_webhook_config.resources | length > 0
+    - r_webhook_config.resources[0].webhooks[0].clientConfig.caBundle is defined
+    - r_webhook_config.resources[0].webhooks[0].clientConfig.caBundle | length > 0
+  retries: "{{ ocp_console_embed_service_ca_wait_retries }}"
+  delay: "{{ ocp_console_embed_service_ca_wait_delay }}"
+
+- name: Get current router Deployment
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: router-default
+    namespace: openshift-ingress
+  register: r_router_pre
+
+- name: Get worker nodes
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Node
+    label_selectors:
+      - node-role.kubernetes.io/worker
+  register: r_worker_nodes
+
+# On clusters where the control plane has been cordoned (e.g. SNO scaled
+# with worker VMs), the ingress operator may have set more router replicas
+# than there are schedulable nodes.  Because the router uses hostNetwork,
+# only one pod can run per node.  A rolling update with maxSurge=0 will
+# deadlock when it cannot schedule the replacement pod.
+- name: Count schedulable worker nodes
+  vars:
+    _total: "{{ r_worker_nodes.resources | length | int }}"
+    _cordoned: >-
+      {{ r_worker_nodes.resources
+         | map(attribute='spec')
+         | selectattr('unschedulable', 'defined')
+         | selectattr('unschedulable', 'equalto', true)
+         | list | length }}
+  ansible.builtin.set_fact:
+    _ocp_console_embed_schedulable_workers: "{{ (_total | int) - (_cordoned | int) }}"
+
+- name: Scale IngressController replicas to match schedulable nodes
+  kubernetes.core.k8s:
+    api_version: operator.openshift.io/v1
+    kind: IngressController
+    name: default
+    namespace: openshift-ingress-operator
+    state: present
+    definition:
+      spec:
+        replicas: "{{ _ocp_console_embed_schedulable_workers | int }}"
+  when:
+    - r_router_pre.resources | length > 0
+    - (_ocp_console_embed_schedulable_workers | int) > 0
+    - (r_router_pre.resources[0].spec.replicas | default(0) | int)
+      > (_ocp_console_embed_schedulable_workers | int)
+
+- name: Wait for router to stabilize after replica adjustment
+  ansible.builtin.include_tasks: wait-router-rollout.yml
+  vars:
+    _ocp_console_embed_wait_reason: replica adjustment
+  when:
+    - r_router_pre.resources | length > 0
+    - (_ocp_console_embed_schedulable_workers | int) > 0
+    - (r_router_pre.resources[0].spec.replicas | default(0) | int)
+      > (_ocp_console_embed_schedulable_workers | int)
+
+- name: Patch IngressController to remove X-Frame-Options and set CSP
+  kubernetes.core.k8s:
+    api_version: operator.openshift.io/v1
+    kind: IngressController
+    name: default
+    namespace: openshift-ingress-operator
+    state: present
+    definition:
+      spec:
+        httpHeaders:
+          actions:
+            response:
+              - name: X-Frame-Options
+                action:
+                  type: Delete
+              - name: Content-Security-Policy
+                action:
+                  type: Set
+                  set:
+                    value: "frame-ancestors 'self' https://*.{{ ocp_console_embed_domain }}"
+
+- name: Wait for router rollout to complete
+  ansible.builtin.include_tasks: wait-router-rollout.yml
+  vars:
+    _ocp_console_embed_wait_reason: IngressController patch
+
+- name: Wait for Service CA certificate in openshift-authentication
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    name: v4-0-config-system-service-ca
+    namespace: openshift-authentication
+  register: r_service_ca
+  until:
+    - r_service_ca.resources | length > 0
+    - r_service_ca.resources[0].data['service-ca.crt'] is defined
+  retries: "{{ ocp_console_embed_service_ca_wait_retries }}"
+  delay: "{{ ocp_console_embed_service_ca_wait_delay }}"
+
+- name: Patch OAuth Route to use reencrypt TLS
+  kubernetes.core.k8s:
+    api_version: route.openshift.io/v1
+    kind: Route
+    name: oauth-openshift
+    namespace: openshift-authentication
+    state: present
+    definition:
+      spec:
+        tls:
+          termination: reencrypt
+          insecureEdgeTerminationPolicy: Redirect
+          destinationCACertificate: "{{ r_service_ca.resources[0].data['service-ca.crt'] }}"
+
+- name: Verify OAuth route stays reencrypt after auth operator reconciliation
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    name: oauth-openshift
+    namespace: openshift-authentication
+  register: r_oauth_route
+  until:
+    - r_oauth_route.resources | length > 0
+    - r_oauth_route.resources[0].spec.tls.termination == 'reencrypt'
+  retries: "{{ ocp_console_embed_verify_retries }}"
+  delay: "{{ ocp_console_embed_verify_delay }}"

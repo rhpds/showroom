@@ -1,0 +1,48 @@
+---
+# Takes advantage of self-provisioner, if present
+# This fails until the namespace is created, then it fails because `AlreadyExists`
+# Though this is an error, it's the condition we hope to achieve.
+# These are the limitations of the ProjectRequest and self-provisioner
+
+- name: Create Showroom namespace
+  kubernetes.core.k8s:
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ _showroom_namespace }}"
+        labels:
+          guid: "{{ guid }}"
+          creator: agnosticd.showroom.ocp4_workload_showroom
+  register: r_create_showroom_namespace
+  ignore_errors: true
+  retries: 20
+  delay: 3
+  until: r_create_showroom_namespace is not failed
+
+# For shared clusters where the service account does not have permission
+# to create namespaces.
+- name: Attempt to create Showroom project if namespace failed
+  when: r_create_showroom_namespace is failed
+  kubernetes.core.k8s:
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    definition:
+      apiVersion: project.openshift.io/v1
+      kind: ProjectRequest
+      metadata:
+        name: "{{ _showroom_namespace }}"
+        labels:
+          guid: "{{ guid }}"
+          creator: agnosticd.showroom.ocp4_workload_showroom
+  register: r_create_showroom_project
+  retries: 20
+  delay: 3
+  until: r_create_showroom_project is not failed
+  failed_when: >-
+    r_create_showroom_project is failed and
+    'AlreadyExists' not in r_create_showroom_project.msg | default('')

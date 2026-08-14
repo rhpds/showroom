@@ -1,0 +1,25 @@
+{% set _provider = (showroom_tls_provider | default(certbot_cert_manager_provider, true) | default('zerossl')) | lower %}
+{% set _entrypoint = 'web' if _provider == 'none' else 'websecure' %}
+terminal-02:
+  image: {{ showroom_tty_image }}:{{ showroom_tty_image_tag }}
+  container_name: terminal-02
+  hostname: terminal-02
+  command:
+    - "--ssh-user={{ showroom_terminal2_ssh_username | default(showroom_ssh_username) }}"
+    - "--ssh-pass={{ showroom_terminal2_ssh_password | default(showroom_ssh_password) }}"
+    - "--ssh-host={{ showroom_terminal2_ssh_host | default('host.containers.internal') }}"
+    - "--ssh-port={{ showroom_terminal2_ssh_port | default(22) }}"
+    - "--port=3001"
+    - "--base=/terminal2"
+{% if showroom_ttys_enable_tmux | bool %}
+    - "--command=/usr/local/bin/showroom-tmux tty2"
+{% endif %}
+    - "--allow-iframe=true"
+  labels:
+    - "traefik.enable=true"
+    - "traefik.http.services.terminal2.loadbalancer.server.port=3001"
+    - "traefik.http.routers.terminal2.entrypoints={{ _entrypoint }}"
+{% if _provider != 'none' %}
+    - "traefik.http.routers.terminal2.tls.certresolver={{ _provider }}"
+{% endif %}
+    - "traefik.http.routers.terminal2.rule=Host(`{{ showroom_host }}`) && PathPrefix(`/terminal2`)"

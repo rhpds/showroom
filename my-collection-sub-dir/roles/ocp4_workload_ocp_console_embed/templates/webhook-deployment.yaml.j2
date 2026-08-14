@@ -1,0 +1,73 @@
+# Deployment for the OAuth route mutating webhook.
+# Runs a Python HTTP server that intercepts Route writes in
+# openshift-authentication and converts passthrough to reencrypt.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ ocp_console_embed_name }}-webhook"
+  namespace: "{{ ocp_console_embed_namespace }}"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: "{{ ocp_console_embed_name }}-webhook"
+  template:
+    metadata:
+      labels:
+        app: "{{ ocp_console_embed_name }}-webhook"
+    spec:
+      serviceAccountName: "{{ ocp_console_embed_name }}"
+      containers:
+        - name: webhook
+          image: "{{ ocp_console_embed_image }}"
+          command:
+            - python3
+            - -u
+            - /webhook/webhook.py
+          env:
+            - name: WATCH_TIMEOUT
+              value: "{{ ocp_console_embed_watch_timeout }}"
+          ports:
+            - containerPort: 8443
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: {{ ocp_console_embed_webhook_readiness_initial_delay }}
+            periodSeconds: {{ ocp_console_embed_webhook_readiness_period }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: {{ ocp_console_embed_webhook_liveness_initial_delay }}
+            periodSeconds: {{ ocp_console_embed_webhook_liveness_period }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          volumeMounts:
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            - name: service-ca
+              mountPath: /service-ca
+              readOnly: true
+            - name: script
+              mountPath: /webhook
+              readOnly: true
+      volumes:
+        - name: tls
+          secret:
+            secretName: "{{ ocp_console_embed_name }}-webhook-tls"
+        - name: service-ca
+          configMap:
+            name: "{{ ocp_console_embed_name }}-service-ca"
+        - name: script
+          configMap:
+            name: "{{ ocp_console_embed_name }}-webhook-script"

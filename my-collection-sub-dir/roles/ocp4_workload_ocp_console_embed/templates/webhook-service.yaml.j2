@@ -1,0 +1,18 @@
+# Service for the mutating webhook. The serving-cert-secret-name annotation
+# tells OCP's service CA operator to auto-provision a TLS Secret signed by
+# the cluster's service CA. The API server trusts this CA for webhook calls.
+apiVersion: v1
+kind: Service
+metadata:
+  name: "{{ ocp_console_embed_name }}-webhook"
+  namespace: "{{ ocp_console_embed_namespace }}"
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: "{{ ocp_console_embed_name }}-webhook-tls"
+spec:
+  selector:
+    app: "{{ ocp_console_embed_name }}-webhook"
+  ports:
+    - name: https
+      port: 443
+      targetPort: 8443
+      protocol: TCP

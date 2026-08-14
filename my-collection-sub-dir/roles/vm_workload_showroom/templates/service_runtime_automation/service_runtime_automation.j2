@@ -1,0 +1,45 @@
+{% set _provider = (showroom_tls_provider | default(certbot_cert_manager_provider, true) | default('zerossl')) | lower %}
+{% set _entrypoint = 'web' if _provider == 'none' else 'websecure' %}
+{% set _runner_image = showroom_runtime_automation_image | default(showroom_ansible_runner_image, true) | default('quay.io/rhpds/zerotouch-automation') %}
+{% set _runner_tag = showroom_runtime_automation_image_tag | default(showroom_ansible_runner_image_tag, true) | default('v1.3.1') %}
+{% set _runner_port = showroom_runtime_automation_port | default(8501) %}
+{% set _runner_env = f_user_data | default({}) | combine(showroom_runtime_automation_environment_variables | default({})) %}
+ansible-runner-api:
+  image: {{ _runner_image }}:{{ _runner_tag }}
+  container_name: ansible-runner-api
+  hostname: ansible-runner-api
+  restart: always
+  environment:
+    PORT: "{{ _runner_port }}"
+    GUID: "{{ guid }}"
+    DOMAIN: "{{ showroom_host }}"
+    ANSIBLE_USER: "{{ showroom_ssh_username | default(f_user_data.get('default_ssh_username', '')) | default(f_user_data.get('ssh_username', ''), true) }}"
+    ANSIBLE_PASSWORD: "{{ showroom_ssh_password | default(f_user_data.get('default_ssh_password', '')) | default(f_user_data.get('ssh_password', ''), true) }}"
+{% for key, value in _runner_env.items() %}
+    {{ key | upper }}: "{{ value }}"
+{% endfor %}
+  volumes:
+    - "{{ showroom_user_content_dir }}:/showroom/repo:z,ro"
+    - "{{ showroom_user_content_dir }}/runtime-automation:/app/runtime-automation:z,ro"
+    - "{{ showroom_user_content_dir }}/qa-automation:/app/qa-automation:z,ro"
+    - "{{ showroom_user_home_dir }}/.ssh:/app/.ssh"
+  labels:
+    - "traefik.enable=true"
+    - "traefik.http.services.runner.loadbalancer.server.port={{ _runner_port }}"
+    - "traefik.http.services.runner.loadbalancer.responseforwarding.flushinterval=-1s"
+    - "traefik.http.routers.runner-stream.entrypoints={{ _entrypoint }}"
+{% if _provider != 'none' %}
+    - "traefik.http.routers.runner-stream.tls.certresolver={{ _provider }}"
+{% endif %}
+    - "traefik.http.routers.runner-stream.rule=Host(`{{ showroom_host }}`) && PathPrefix(`/stream`)"
+    - "traefik.http.routers.runner-stream.service=runner"
+    - "traefik.http.routers.runner-stream.priority=50"
+    - "traefik.http.routers.runner-api.entrypoints={{ _entrypoint }}"
+{% if _provider != 'none' %}
+    - "traefik.http.routers.runner-api.tls.certresolver={{ _provider }}"
+{% endif %}
+    - "traefik.http.routers.runner-api.rule=Host(`{{ showroom_host }}`) && PathPrefix(`/runner`)"
+    - "traefik.http.routers.runner-api.middlewares=runner-api-stripprefix"
+    - "traefik.http.middlewares.runner-api-stripprefix.stripprefix.prefixes=/runner"
+    - "traefik.http.routers.runner-api.service=runner"
+    - "traefik.http.routers.runner-api.priority=40"

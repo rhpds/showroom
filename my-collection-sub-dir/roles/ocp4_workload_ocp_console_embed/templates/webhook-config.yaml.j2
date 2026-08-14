@@ -1,0 +1,42 @@
+# MutatingWebhookConfiguration that intercepts Route CREATE/UPDATE in
+# openshift-authentication. The inject-cabundle annotation tells OCP's
+# service CA operator to populate caBundle so the API server trusts the
+# webhook's TLS cert.
+#
+# failurePolicy: Ignore means if the webhook is unreachable, route
+# operations proceed normally (fail-open). OAuth keeps working but
+# iframe embedding breaks until the webhook recovers.
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: "{{ ocp_console_embed_name }}-oauth-route"
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"
+webhooks:
+  - name: oauth-route.ocp-console-embed.redhat.com
+    admissionReviewVersions:
+      - v1
+    sideEffects: None
+    failurePolicy: Ignore
+    timeoutSeconds: 5
+    reinvocationPolicy: Never
+    rules:
+      - apiGroups:
+          - route.openshift.io
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - routes
+        scope: Namespaced
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: openshift-authentication
+    clientConfig:
+      service:
+        name: "{{ ocp_console_embed_name }}-webhook"
+        namespace: "{{ ocp_console_embed_namespace }}"
+        path: /mutate
+        port: 443

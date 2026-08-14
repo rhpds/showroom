@@ -1,0 +1,155 @@
+---
+showroom_deploy: true
+
+# Ensure user data structure is always defined for templating
+f_user_data: {}
+
+# ----------------------------------------------------------------------
+# Showroom service pod images
+# ----------------------------------------------------------------------
+showroom_antora_image: quay.io/rhpds/antora
+showroom_antora_image_tag: v1.3.0
+
+showroom_reverse_proxy_image: quay.io/rhpds/traefik
+showroom_reverse_proxy_image_tag: v3.7.9
+
+showroom_httpd_image: quay.io/rhpds/showroom-content
+showroom_httpd_image_tag: v1.4.2
+
+showroom_codeserver_image: quay.io/redhat-gpte/showroom/code-server
+showroom_codeserver_image_tag: latest
+
+showroom_tty_image: quay.io/rhpds/wetty
+showroom_tty_image_tag: v3.2.1
+
+# ----------------------------------------------------------------------
+# Runtime automation runner (zt-runner)
+# Adds a /stream/ endpoint for SSE-based automation events.
+# ----------------------------------------------------------------------
+showroom_runtime_automation_enable: false
+showroom_runtime_automation_image: quay.io/rhpds/zerotouch-automation
+showroom_runtime_automation_image_tag: v1.3.1
+showroom_runtime_automation_port: 8501
+showroom_runtime_automation_environment_variables: {}
+
+# ----------------------------------------------------------------------
+# Parasol service settings
+# ----------------------------------------------------------------------
+
+showroom_parasol_image: "quay.io/rhappsvcs/parasol-insurance"
+showroom_parasol_image_tag: v0.0.1
+
+showroom_parasol_host: "{{ showroom_host }}"
+showroom_parasol_port: 8005
+
+showroom_parasol_llm_host_url: "http://host.containers.internal:{{ showroom_parasol_llm_port }}/v1"
+showroom_parasol_llm_port: 8001 # Uses socat so not 8000, see start script
+
+# ----------------------------------------------------------------------
+# Content repo with *optional* tag
+# ----------------------------------------------------------------------
+showroom_git_repo: https://github.com/rhpds/showroom-template.git
+showroom_git_ref: main
+
+# Which Antora Playbook to use in the content repo
+# When set to "default-site.yml" (default), will try default-site.yml first, then fall back to site.yml
+# Users can override with any custom playbook filename
+showroom_content_antora_playbook: site.yml
+
+# Override ui-config.yml for the content container (JSON or YAML string, empty = use repo default)
+showroom_content_ui_config: ""
+
+# Override the Antora UI bundle URL (empty = use the default from site.yml)
+showroom_antora_ui_bundle_url: ""
+
+# Override the navbar logo (e.g. "summit" for Red Hat Summit branding; empty = use default)
+showroom_content_antora_navbar_logo: ""
+
+# Master toggle: enable dev mode for all showroom containers (antora, and future content containers)
+showroom_enable_dev_mode: false
+
+# Enable Antora dev-mode extension (adds attribute pages and unlisted pages to nav).
+# Also enabled when showroom_enable_dev_mode is true.
+showroom_antora_enable_dev_mode: false
+
+showroom_primary_path: ""    # this is the postfix to the URL where the UI is available
+showroom_ui_zero_bundle: https://github.com/rhpds/nookbag/releases/download/nookbag-v0.4.0/nookbag-v0.4.0.zip
+showroom_var_inject: true             # allows turning off var injection, many labs may not need it
+
+showroom_primary_port: 443            # TODO: Validate traefik websecure=8443
+
+showroom_user: showroom
+showroom_user_group: showroom
+showroom_user_uid: 1888               # simplifies traefik mounting of podman socket
+showroom_user_home_dir: /opt/showroom # Base dir for all things showroom (orchestration, content)
+showroom_user_orchestration_dir: "{{ showroom_user_home_dir }}/orchestration"
+showroom_user_content_dir: "{{ showroom_user_home_dir }}/content"
+showroom_user_build_dir: "{{ showroom_user_home_dir }}/build"
+
+# ----------------------------------------------------------------------
+# OpenSSH Keypair Options generate/provisionkey
+# generate option will generate new ssh keypair
+# provisionkey will use environment ssh keypair
+# ----------------------------------------------------------------------
+showroom_openssh_keypair: generate
+
+# ----------------------------------------------------------------------
+# Some labs and demos require only root user access
+# ssh setup
+# ----------------------------------------------------------------------
+showroom_ssh_method: password         # password | config (ie via config && ssh key)
+showroom_ssh_key_type: ed25519        # ed25519 | rsa
+
+showroom_enable_root_ssh: false
+  # showroom_default_ssh_user:
+showroom_lab_users:
+  - "{{ showroom_default_ssh_user | default('rhel') }}"
+
+# ----------------------------------------------------------------------
+# Default template
+# ----------------------------------------------------------------------
+showroom_base_services:
+  - traefik_httpd                     # Combines a traefik reverse proxy with httpd as a "pair"
+
+showroom_ttys_enable_tmux: false
+showroom_ttys_tumx_scrolling: true
+
+showroom_tab_services: []
+  # - "single_terminal"
+  # - "second_terminal"
+  # - "codeserver"
+  # - "parasol"
+
+showroom_dnf_packages:
+  - acl
+  - ansible-core
+  - git
+  - podman
+  - python-devel
+  - socat
+  - systemd-container
+  - unzip
+
+showroom_pip_packages:
+  - podman-compose
+
+showroom_work_dirs:
+  - "{{ showroom_user_home_dir }}/content"               # The showroom repo itself, asciidoc source e.g. Antora
+  - "{{ showroom_user_home_dir }}/orchestration"         # compose, kube files etc
+
+# ----------------------------------------------------------------------
+# TLS and ACME configuration
+# ----------------------------------------------------------------------
+showroom_tls_provider: zerossl            # letsencrypt | zerossl | none
+showroom_acme_email: john.doe@rhdp.net    # email used for ACME account
+showroom_http_port: 80                    # host port to bind for HTTP-01 challenge when enabled
+
+# ZeroSSL settings
+showroom_acme_zerossl_caserver: https://acme.zerossl.com/v2/DV90
+showroom_acme_zerossl_acme_challenge: http
+showroom_acme_zerossl_eab_kid: ""
+showroom_acme_zerossl_eab_hmac_key: ""
+
+# Let's Encrypt settings
+showroom_acme_letsencrypt_caserver: https://acme-v02.api.letsencrypt.org/directory
+showroom_acme_letsencrypt_acme_challenge: tlsalpn

@@ -1,0 +1,36 @@
+---
+ocp_console_embed_domain: ""
+ocp_console_embed_namespace: ocp-console-embed
+ocp_console_embed_name: ocp-console-embed
+# Use UBI10 Python 3.12 minimal image
+ocp_console_embed_image: "registry.access.redhat.com/ubi10/python-312-minimal:10.1"
+
+# Wait for service CA operator to provision TLS Secret and inject CA bundle
+ocp_console_embed_service_ca_wait_retries: 30
+ocp_console_embed_service_ca_wait_delay: 5
+
+# Wait for webhook Deployment pod to be ready
+ocp_console_embed_webhook_wait_retries: 60
+ocp_console_embed_webhook_wait_delay: 5
+
+# Server-side timeout (seconds) for the Kubernetes watch on the
+# oauth-openshift route.  The reconciler reconnects automatically
+# when this expires.
+ocp_console_embed_watch_timeout: 300
+
+# Wait for router rollout after IngressController patch.
+# Large clusters may have 10+ router replicas; with maxSurge=0,
+# maxUnavailable=25%, and minReadySeconds=30 the rollout can
+# take 10+ minutes.
+ocp_console_embed_router_wait_retries: 120
+ocp_console_embed_router_wait_delay: 10
+
+# Wait for OAuth route to stay reencrypt after auth operator reconciliation
+ocp_console_embed_verify_retries: 12
+ocp_console_embed_verify_delay: 5
+
+# Webhook Probes
+ocp_console_embed_webhook_readiness_initial_delay: 3
+ocp_console_embed_webhook_readiness_period: 10
+ocp_console_embed_webhook_liveness_initial_delay: 5
+ocp_console_embed_webhook_liveness_period: 15

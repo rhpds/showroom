@@ -1,0 +1,21 @@
+#!/usr/bin/bash
+
+# setup compose file and options for selinux, cleanup of orphans etc
+
+export SHOWROOM_COMPOSE_FILE={{ showroom_user_orchestration_dir }}/container-compose.yml
+export SHOWROOM_SECURITY_OPT="--security-opt label=type:container_runtime_t"
+export SHOWROOM_CLEANUP_OPT="--remove-orphans"
+
+{% if showroom_runtime_automation_enable | default(false) | bool or showroom_ansible_runner_api | default(false) | bool %}
+# Ensure automation volume mount sources exist (content repo may not include them)
+mkdir -p {{ showroom_user_content_dir }}/runtime-automation
+mkdir -p {{ showroom_user_content_dir }}/qa-automation
+{% endif %}
+
+{% if 'parasol' in showroom_tab_services %}
+/usr/bin/socat TCP-LISTEN:8001,fork,reuseaddr TCP:127.0.0.1:8000 &
+{% endif %}
+/usr/local/bin/podman-compose \
+  -f $SHOWROOM_COMPOSE_FILE \
+  --podman-run-args "--security-opt label=type:container_runtime_t" \
+  up -d $SHOWROOM_CLEANUP_OPT

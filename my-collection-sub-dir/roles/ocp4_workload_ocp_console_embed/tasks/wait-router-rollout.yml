@@ -1,0 +1,18 @@
+---
+- name: "Wait for router rollout to complete ({{ _ocp_console_embed_wait_reason }})"
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: router-default
+    namespace: openshift-ingress
+  register: r_router_rollout
+  until:
+    - r_router_rollout is not failed
+    - r_router_rollout.resources | length > 0
+    - r_router_rollout.resources[0].status.updatedReplicas is defined
+    - r_router_rollout.resources[0].status.availableReplicas is defined
+    - r_router_rollout.resources[0].status.updatedReplicas == r_router_rollout.resources[0].spec.replicas
+    - r_router_rollout.resources[0].status.availableReplicas == r_router_rollout.resources[0].spec.replicas
+    - (r_router_rollout.resources[0].status.unavailableReplicas | default(0)) == 0
+  retries: "{{ ocp_console_embed_router_wait_retries }}"
+  delay: "{{ ocp_console_embed_router_wait_delay }}"

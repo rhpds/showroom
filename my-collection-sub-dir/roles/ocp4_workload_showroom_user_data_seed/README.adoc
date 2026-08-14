@@ -1,0 +1,127 @@
+= ocp4_workload_showroom_user_data_seed
+
+A small helper role that seeds AgnosticD `user_data` with structured values for use by the `ocp4_workload_showroom` role (and any other consumers of `agnosticd.core.agnosticd_user_data`).
+
+== Overview
+
+This role writes a single, structured document into AgnosticD `user_data` by calling `agnosticd.core.agnosticd_user_info`.
+
+* You define the exact structure you want in `ocp4_workload_showroom_user_data_seed`.
+* The role validates that it is a mapping and then writes it into `user_data` as-is.
+* The `ocp4_workload_showroom` role later reads that `user_data` and exposes it to your Showroom content as `content.user_data`.
+
+Typical use cases:
+
+* Provide **global configuration** (API URLs, feature flags, nested config objects) to Showroom content.
+* Provide an optional **`users` map** so each user gets their own merged slice of data in multi-user workshops.
+* Seed test data for collection development without depending on other workloads to populate `user_data`.
+
+== How It Works
+
+* The role expects a single variable, `ocp4_workload_showroom_user_data_seed`, to be defined as a mapping.
+* It asserts that this variable is present and is a dictionary (mapping).
+* It calls `agnosticd.core.agnosticd_user_info` with `data: "{{ ocp4_workload_showroom_user_data_seed }}"`.
+* AgnosticD writes that data into the standard `*-user-data.yaml` file on disk.
+* When `ocp4_workload_showroom` runs later, it calls `lookup('agnosticd.core.agnosticd_user_data', '*')` and merges those values into `_showroom_user_data`.
+
+If your seed includes a top-level `users` key, the data will look like any other AgnosticD `user_data` document:
+
+* Top-level (global) keys such as `api_url`, `feature_flags`, `nested_config`, etc.
+* An optional `users` map (`users.user1`, `users.user2`, …) with per-user overrides.
+
+The `ocp4_workload_showroom` role then:
+
+* Derives `_showroom_global_data` by dropping the `users` key, leaving only global (non-user-specific) entries.
+* In **single-user** mode, passes `_showroom_global_data` plus `guid` into the Helm chart as `content.user_data`.
+* In **multi-user** mode, builds one `_showroom_vars` per user by combining `_showroom_global_data` with that user’s entry from `_showroom_user_data.users`, plus helper keys like `guid` and `user`.
+
+== Configuration
+
+=== Required Variables
+
+[cols="1,1,3",options="header"]
+|===
+|Variable |Type |Description
+
+|`ocp4_workload_showroom_user_data_seed`
+|mapping
+|Structured document to write into AgnosticD `user_data`. Must be a YAML/JSON dictionary. May include any keys you need (for example `api_url`, `feature_flags`, `nested_config`, and an optional `users` map).
+|===
+
+=== Recommended Structure
+
+A typical seed value might look like:
+
+[source,yaml]
+----
+ocp4_workload_showroom_user_data_seed:
+  api_url: "https://api.example.com"
+  users:
+    user1:
+      token: "token-for-user1"
+      env: "dev"
+    user2:
+      token: "token-for-user2"
+      env: "prod"
+----
+
+With this structure:
+
+* Global keys (`api_url`, `feature_flags`, `nested_config`) are visible to all users.
+* Each user entry under `users` is merged with the globals for that user’s Showroom instance in multi-user mode.
+
+== Behavior and Validation
+
+* If `ocp4_workload_showroom_user_data_seed` is **not defined** or is **not a mapping**, the role fails with a clear assertion message.
+* The role performs **no transformation** of keys or values; it writes exactly what you provide.
+* There is no rollback; later workloads can overwrite or extend `user_data` by calling `agnosticd.core.agnosticd_user_info` again.
+
+== Examples
+
+=== Minimal Single-User Seed
+
+[source,yaml]
+----
+# In AgnosticV common.yaml
+ocp4_workload_showroom_user_data_seed:
+  api_url: "https://api.cluster.example.com"
+  docs_url: "https://docs.example.com"
+----
+
+This will make `api_url`, `docs_url`, and `feature_flags` available in `content.user_data` for a single-user Showroom deployment.
+
+=== Multi-User Workshop Seed
+
+[source,yaml]
+----
+# In AgnosticV common.yaml
+ocp4_workload_showroom_user_data_seed:
+  api_url: "https://api.cluster.example.com"
+  users:
+    user1:
+      token: "token-for-user1"
+    user2:
+      token: "token-for-user2"
+----
+
+Combined with a multi-user `user_data` setup, each user’s Showroom pod will see:
+
+* The same global `api_url` and `feature_flags`.
+* Their own `token` and `env` values merged into `content.user_data`.
+
+=== Using from AgnosticD / AgnosticV Workloads
+
+In an AgnosticD or AgnosticV configuration, include the role before `ocp4_workload_showroom` so the seed is written first:
+
+[source,yaml]
+----
+# Example snippet from an AgnosticV common.yaml
+workloads:
+  - agnosticd.showroom.ocp4_workload_showroom_user_data_seed
+  - agnosticd.showroom.ocp4_workload_showroom
+----
+
+With this ordering:
+
+. `ocp4_workload_showroom_user_data_seed` writes your seed into `user_data`.
+. `ocp4_workload_showroom` reads `user_data` and passes it into the content container as `content.user_data`.

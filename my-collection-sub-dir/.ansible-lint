@@ -1,0 +1,22 @@
+---
+profile: production
+
+exclude_paths:
+- tests/
+- testing/
+
+skip_list:
+- var-naming[no-role-prefix]
+- galaxy[no-changelog]
+
+mock_modules:
+- agnosticd.core.agnosticd_user_info
+- kubernetes.core.k8s
+- kubernetes.core.k8s_info
+- kubernetes.core.k8s_log
+- kubernetes.core.helm_template
+- community.crypto.openssh_keypair
+- ansible.posix.authorized_key
+- ansible.posix.sysctl
+- containers.podman.podman_container
+- containers.podman.podman_network

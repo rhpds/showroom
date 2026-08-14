@@ -1,0 +1,24 @@
+---
+
+# Structured user_data seed (global + optional users map)
+# Example:
+# ocp4_workload_showroom_user_data_seed:
+#   api_url: "https://api.example.com"
+#   feature_flags:
+#     - alpha
+#     - beta
+#   nested_config:
+#     cluster:
+#       name: "demo-cluster"
+#       region: "us-east-1"
+#       labels:
+#         env: "dev"
+#         team: "showroom"
+#   users:
+#     user1:
+#       token: "token-for-user1"
+#       env: "dev"
+#     user2:
+#       token: "token-for-user2"
+#       env: "prod"
+ocp4_workload_showroom_user_data_seed: {}

@@ -1,0 +1,12 @@
+# ConfigMap that receives the service CA bundle via OCP's service CA operator.
+# The service CA signs serving certs for in-cluster services, including the
+# OAuth server. The webhook uses this CA as destinationCACertificate when
+# converting the OAuth route from passthrough to reencrypt TLS.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ ocp_console_embed_name }}-service-ca"
+  namespace: "{{ ocp_console_embed_namespace }}"
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"
+data: {}

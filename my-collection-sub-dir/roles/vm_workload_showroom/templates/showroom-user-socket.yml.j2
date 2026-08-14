@@ -1,0 +1,23 @@
+---
+- name: Fix showroom podman sockets
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Ensure user lingering is enabled (required for user systemd at boot)
+      become: true
+      ansible.builtin.command:
+        cmd: "/usr/bin/loginctl enable-linger {{ showroom_user }}"
+        creates: "/var/lib/systemd/linger/{{ showroom_user }}"
+
+    - name: Enable and start podman.socket for user
+      become: true
+      become_user: "{{ showroom_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ showroom_user_uid }}"
+        DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ showroom_user_uid }}/bus"
+      ansible.builtin.systemd:
+        name: podman.socket
+        scope: user
+        enabled: true
+        state: started
+        masked: false

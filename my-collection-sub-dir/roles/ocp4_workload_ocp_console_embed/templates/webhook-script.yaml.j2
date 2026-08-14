@@ -1,0 +1,14 @@
+# ConfigMap containing the mutating webhook Python script.
+# Converts OAuth route from passthrough to reencrypt TLS so HAProxy
+# can strip X-Frame-Options headers for iframe embedding.
+# The auth operator stays fully Managed -- it reconciles normally,
+# handles cert rotation, and manages OAuth pods. The webhook only
+# changes the TLS termination type on each write.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ ocp_console_embed_name }}-webhook-script"
+  namespace: "{{ ocp_console_embed_namespace }}"
+data:
+  webhook.py: |
+{{ lookup('file', 'webhook.py') | indent(4, first=True) }}
