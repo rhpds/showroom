@@ -1,204 +1,548 @@
-= Showroom for OCP
+= zerotouch_showroom
+
+An Ansible role that deploys "zero-touch" flavored Showroom lab instruction environments to OpenShift clusters, with integrated terminals, VNC, cloud-provider credentials, IronRDP, and split setup/runtime automation containers.
 
 == Overview
 
-* Deploys to your demo cluster or the shared cluster
-** Deploying to your demo's openshift: <<your_openshift>>
-** Deploying to our OCP 410 shared OCP Cluster: <<shared_cluster>>
-* One or multiple OpenShift users, autodetected.
-* Deploy the showroom helm chart https://github.com/rhpds/showroom-deployer/charts/showroom-single-pod
-* Supports deployment via OpenShift GitOps (ArgoCD) or a locally installed helm cli (will be installed if not there).
-* Supports multiple deployment options
-** Just lab content
-** Lab content and a Wetty terminal that can be configured to automatically ssh to a bastion
-** Lab content and a ttyd terminal - using available images for ocp/rosa/aro/etc
+This role was ported from `redhat-cop/agnosticd`'s v1 `ocp4_workload_showroom` role (plus its `deploy-showroom-helm-zerotouch.yaml` task) into this collection. It targets the same use cases as the v1 role: demo/workshop clusters and RHPDS's shared/CNV sandbox clusters, with tight integration into the zero-touch automation stack (`nookbag`, `zerotouch-automation`).
 
-== Usage
+This collection also ships a newer, generic `ocp4_workload_showroom` role. The two roles are siblings, not interchangeable:
 
-.Integrating Showroom into your `config/env_type`:
-* Setup your `config/env_type` to support Showroom on OCP <<env_type>>
-* Setup auto-login to your bastion <<bastion_auto_ssh>>
+[cols="1,1,1",options="header"]
+|===
+|          |`zerotouch_showroom` (this role) |`ocp4_workload_showroom`
 
-[#your_openshift]
-== Are you deploying OpenShift and want Showroom deployed on it?
+|Origin |Ported from AgnosticD v1 |Rewritten from scratch for this collection
+|Deployment types |`helm` and `argocd` |`helm` only
+|Extra tabs |cloud-provider credentials, IronRDP, satellite, stacked/second terminal tab |NoVNC only
+|Automation |split `setup_automation` / `runtime_automation` containers |single `runtime_automation` sidecar
+|Default chart |`zerotouch` (see <<chart_selection>>) |`showroom-single-pod` (`2.x`)
+|Auth model |dual: explicit `host`/`api_key` vars, or an optional kubeconfig file |explicit `host`/`api_key` vars only
+|===
 
-. Add the `ocp4_workload_showroom` infra role to your CI:
+If you don't need the zerotouch-specific tabs/automation split, prefer `ocp4_workload_showroom` instead.
+
+== What It Does
+
+When `ACTION` is `create` or `provision`, the role:
+
+1. Optionally builds a kubeconfig if deploying to a separate remote cluster (see <<auth>>).
+2. Validates required inputs (`guid`, content Git repo).
+3. Loads `user_data` (including optional per-user entries) via the `agnosticd.core.agnosticd_user_data` lookup plugin.
+4. Looks up the cluster's apps domain (or uses `sandbox_openshift_apps_domain` directly on CNV sandboxes).
+5. Creates one or more namespaces/projects (`showroom-<guid>` or `showroom-<guid>-<user>`).
+6. Deploys via `helm` (default) or `argocd`, rendering the Showroom Helm chart with your content, terminal, and zero-touch automation configuration.
+7. For `helm`, waits for the Showroom pod(s) to be running with all containers ready; on failure/timeout it collects a full pod describe plus container and init-container logs into the failure message.
+8. Discovers the Showroom `Route` and writes `lab_ui_url` and `showroom_primary_view_url` into AgnosticD `user_info` (per user if multi-user).
+
+When `ACTION` is `destroy` or `remove`, the role removes the ArgoCD `Application`/`ApplicationSet` (if that deployment type was used) and then deletes the namespace's `Project`.
+
+== How It Works
+
+- `tasks/main.yml` (do not modify) always runs `pre_workload.yml`, then dispatches to `workload.yml` + `post_workload.yml` (provision) or `remove_workload.yml` (destroy) based on `ACTION`.
+- `tasks/pre_workload.yml`: if `showroom_openshift_api_url`, `showroom_openshift_api_token`, and `showroom_openshift_api_ca_cert` are all defined, writes a temporary kubeconfig file and sets `_showroom_kubeconfig` to its path. See <<auth>> — note these variable names do **not** have the `ocp4_workload_` prefix.
+- `tasks/prepare-variables.yaml`:
+* Asserts `guid` and `ocp4_workload_showroom_content_git_repo` are set.
+* Optionally copies `agnosticd_passthrough_user_data` into each `userN` entry in `user_data` when `ocp4_workload_showroom_passthrough_user_data` is `true` (neither variable has a default; both are opt-in).
+* Loads global + per-user `user_data` into `_showroom_user_data` via `lookup('agnosticd.core.agnosticd_user_data', '*')`.
+* If `ocp4_workload_showroom_services` is set, logs the resolved URL for each entry (debug only; used by callers that also wire up additional tab services).
+* Resolves `_deployer_domain` from the cluster's `Ingress` config, unless `ocp4_workload_showroom_use_sandbox_domain` is `true`, in which case `sandbox_openshift_apps_domain` is used directly (CNV sandboxes).
+- `tasks/workload.yml`:
+* Branches on `ocp4_workload_showroom_deployment_type` (`helm` or `argocd`).
+* For each branch, detects single-user vs. multi-user from `_showroom_user_data.users` and loops accordingly, setting `_showroom_namespace` and `_showroom_vars` (user data merged with `showroom_vars` overrides) per iteration.
+* `helm` deploys via `deploy-showroom-helm.yaml`; `argocd` installs the templated `application.yaml.j2` (single user) or `applicationset.yaml.j2` (multi-user).
+* Always finishes by including `report-variables.yaml` once per namespace.
+- `tasks/setup-namespace.yaml`: checks if the `Project` already exists; if not, creates it via `ProjectRequest` (retrying and tolerating `AlreadyExists`, working around https://github.com/ansible-collections/kubernetes.core/issues/623[a kubernetes.core bug]). This existence check is what allows this role to run safely on clusters/namespaces it doesn't exclusively own (e.g. CNV sandboxes). Optionally runs a self-provisioner smoke test (create + delete a test `ConfigMap`) when `ocp4_workload_showroom_test_self_provisioner` is `true`.
+- `tasks/deploy-showroom-helm.yaml`: renders the Helm chart (see <<chart_selection>>) with the full zerotouch value set — content, terminal, wetty, novnc, cloud, ironrdp, stacked_terminals, second_terminal_tab, setup_automation, runtime_automation, satellite, route, and antora UI bundle — applies the rendered manifests, then waits up to `ocp4_workload_showroom_wait_retries` for the pod to become ready. If a container is stuck `waiting` in one of `ocp4_workload_showroom_fatal_container_reasons` (default: `CrashLoopBackOff`) for `ocp4_workload_showroom_fatal_container_restart_threshold` (default: `3`) or more restarts, it fails fast instead of waiting out the full retry budget. `terminal.terminals` and `wetty.sshOtherHosts`/`wetty.terminals` are built from the AgnosticD `instances`/`containers` inventory facts (any host/container with a `consoles` or `terminals` key becomes an extra terminal sub-tab).
+- `tasks/check-and-install-helm.yaml`: installs `helm` from a hardcoded S3 URL if it's not already present at `/usr/local/bin/helm` or `/usr/bin/helm` (see <<gotchas>> — `ocp4_workload_showroom_tools_root_url`/`_helm_version` are not actually used here).
+- `tasks/report-variables.yaml`: waits for the `Route` named `ocp4_workload_showroom_service_name`, then writes `lab_ui_url` and `showroom_primary_view_url` (both set to the same URL) to `user_info`.
+- `tasks/remove_workload.yml`: if `ocp4_workload_showroom_deployment_type` was `argocd`, removes the matching `Application`/`ApplicationSet`. Always attempts to delete the `Project` for each namespace, with `ignore_errors: true` — on CNV sandboxes the namespace is the shared sandbox project the automation SA doesn't own, so this delete is expected to fail harmlessly (actual teardown happens at the infra/cloud-provider level).
+
+[#auth]
+== Remote Cluster / Authentication
+
+There are two independent, stackable authentication mechanisms. Understanding both avoids confusing failures:
+
+[cols="1,1,3",options="header"]
+|===
+|Variables |Precedence |Behavior
+
+|`showroom_openshift_api_url`, `showroom_openshift_api_token`, `showroom_openshift_api_ca_cert`
+|Highest (if all three set)
+|`pre_workload.yml` writes them into a temporary kubeconfig file (`_showroom_kubeconfig`), which every `kubernetes.core.*` task then uses via the `kubeconfig:` argument. Note these do **not** use the `ocp4_workload_showroom_` prefix.
+
+|`ocp4_workload_showroom_openshift_api_url`, `ocp4_workload_showroom_openshift_api_token`
+|Used when `_showroom_kubeconfig` is not set
+|Passed as `host:`/`api_key:` directly on every task (same convention as the sibling `ocp4_workload_showroom` role, so callers already setting those vars for that role work here unchanged).
+
+|(neither set)
+|Fallback
+|Tasks fall back to ambient `module_defaults`/environment (`group/k8s`, `K8S_AUTH_HOST`/`K8S_AUTH_API_KEY`) provided by the calling play. This is the pattern used by the original v1 CNV sandbox deployment (`module_defaults: group/k8s: {host, api_key}` set on the play that includes this role).
+|===
+
+[#deployment_types]
+== Deployment Types
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`ocp4_workload_showroom_deployment_type`
+|string
+|`helm`
+|`helm` deploys locally via the Helm CLI (auto-installed if missing). `argocd` creates an ArgoCD `Application`/`ApplicationSet` in the `openshift-gitops` namespace instead (requires an existing ArgoCD install; the role checks for both `v1alpha1` and `v1beta1` `ArgoCD` CRs and fails if neither is found).
+|===
+
+[NOTE]
+====
+The `argocd` templates (`templates/application.yaml.j2`, `templates/applicationset.yaml.j2`) currently render a **reduced** value set compared to the `helm` path: they cover `terminal`, `wetty`, `content`, and `cloud`, but do **not** set `novnc`, `ironrdp`, `satellite`, `stacked_terminals`, `second_terminal_tab`, `setup_automation`/`runtime_automation`, `route.hostSuffix`/`omitHost`, or the Antora UI bundle override. If you need any of those, use `helm` deployment instead.
+====
+
+[#chart_selection]
+== Selecting the Helm Chart
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`ocp4_workload_showroom_chart_package_url`
+|string
+|`https://rhpds.github.io/showroom-deployer`
+|Helm chart repository URL.
+
+|`ocp4_workload_showroom_deployer_chart_name`
+|string
+|`zerotouch`
+|Chart name to deploy. See <<chart_note>>.
+
+|`ocp4_workload_showroom_deployer_chart_version`
+|string
+|`1.10.2`
+|Chart version. Available versions are at https://github.com/rhpds/showroom-deployer/releases.
+|===
+
+[#chart_note]
+[NOTE]
+====
+This role's rendered `release_values` schema (`cloud`, `ironrdp`, `satellite`, split `setup_automation`/`runtime_automation`, `stacked_terminals`, `second_terminal_tab`, `route.hostSuffix`/`omitHost`, `antora.uiBundleUrl`, etc.) matches the `zerotouch` chart in https://github.com/rhpds/showroom-deployer[showroom-deployer], **not** the `showroom-single-pod` chart used by the sibling `ocp4_workload_showroom` role — those two charts diverged and no longer share the same `values.yaml` shape. If you override `ocp4_workload_showroom_deployer_chart_name`/`_version`, verify the target chart's `values.yaml` actually implements every feature you're relying on — Helm silently ignores unknown values, so an incompatible chart will not error, it will just no-op the feature (e.g. `ocp4_workload_showroom_ironrdp_enable: true` doing nothing).
+====
+
+== Configuration
+
+Defaults come from `defaults/main.yaml` unless otherwise noted.
+
+=== Core Settings
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`guid`
+|string
+|(required)
+|Unique identifier for this deployment. Used in namespace names.
+
+|`ocp4_workload_showroom_content_git_repo`
+|string
+|(required)
+|Git repository URL containing Antora content to render.
+
+|`ocp4_workload_showroom_name`
+|string
+|`showroom`
+|Base name for Showroom resources (labels, release name).
+
+|`ocp4_workload_showroom_namespace`
+|string
+|`showroom-{{ guid \| default('00000') }}`
+|Base namespace for single-user deployments. Multi-user appends `-<user>`.
+
+|`ocp4_workload_showroom_service_name`
+|string
+|`{{ ocp4_workload_showroom_name }}`
+|Name of the `Route` to wait for when publishing the URL.
+
+|`ocp4_workload_showroom_test_self_provisioner`
+|boolean
+|`false`
+|If `true`, creates and deletes a test `ConfigMap` in the new namespace to confirm the self-provisioner works, before deploying.
+
+|`showroom_vars`
+|dict
+|`{}`
+|Overrides merged on top of `_showroom_user_data` (and on top of any per-user entry, in multi-user mode) before being passed to the chart as `content.user_data`.
+|===
+
+=== Content
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`ocp4_workload_showroom_content_git_repo_ref`
+|string
+|`main`
+|Git branch, tag, or commit to use.
+
+|`ocp4_workload_showroom_content_antora_playbook`
+|string
+|`default-site.yml`
+|Antora playbook file inside the content repo.
+
+|`ocp4_workload_showroom_content_image`
+|string
+|`quay.io/rhpds/showroom-content:v1.4.2`
+|Content container image.
+
+|`ocp4_workload_showroom_content_title`
+|string
+|`Showroom`
+|Title used for the rendered `index.html`.
+
+|`ocp4_workload_showroom_content_only`
+|boolean
+|`false`
+|Only display the content pane; terminal settings are ignored.
+
+|`ocp4_workload_showroom_antora_ui_bundle_url`
+|string
+|`https://github.com/rhpds/nookbag-bundle/releases/download/v0.0.3/ui-bundle.zip`
+|Override the Antora UI bundle URL. Defaults to ZT's own `nookbag-bundle` theme; set to `""` to fall back to the content repo's own `site.yml` default instead.
+
+|`ocp4_workload_showroom_zero_touch_bundle`
+|string
+|`https://github.com/rhpds/nookbag/releases/download/nookbag-v0.3.6/nookbag-v0.3.6.zip`
+|URL of the zero-touch UI bundle (nookbag) exposed to the content container.
+
+|`ocp4_workload_showroom_zero_touch_ui_enabled`
+|boolean
+|`true`
+|Enables the zero-touch UI/progress-tracking mode in the content container. On by default — it's this role's defining feature.
+|===
+
+=== Terminal
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`ocp4_workload_showroom_terminal_type`
+|string
+|`wetty`
+|`showroom` (containerized terminal image), `wetty` (SSH via wetty), or `""` (no terminal). Defaults to `wetty` since bastion auto-SSH is this role's primary terminal use case.
+
+|`ocp4_workload_showroom_terminal_enable`
+|boolean
+|`true`
+|Master toggle for whether a terminal is rendered at all (the zerotouch chart honors this).
+
+|`ocp4_workload_showroom_terminal_image`
+|string
+|`quay.io/rhpds/openshift-showroom-terminal-ocp:latest`
+|Image for the `showroom` terminal type (OCP/ROSA/ARO variants available; see the collection-level README).
+
+|`ocp4_workload_showroom_wetty_image`
+|string
+|`quay.io/rhpds/wetty:v2.5`
+|Image for the `wetty` terminal type.
+
+|`ocp4_workload_showroom_wetty_ssh_bastion_login`
+|boolean
+|`true`
+|If `true`, wetty auto-SSHes into the bastion using `bastion_public_hostname`/`bastion_ssh_user_name`/`bastion_ssh_password`/`bastion_ssh_port` (default port `22`) from `_showroom_user_data` (global, or the current user's entry under `users` in multi-user mode). On by default — you still need to supply the bastion connection details yourself (see <<bastion_example>>).
+
+|`ocp4_workload_showroom_terminal_requests_cpu` / `_memory`
+|string
+|`50m` / `256Mi`
+|Requests for the terminal/wetty container (shared setting for either type).
+
+|`ocp4_workload_showroom_terminal_limits_cpu` / `_memory`
+|string
+|`500m` / `1Gi`
+|Limits for the terminal/wetty container.
+
+|`ocp4_workload_showroom_stacked_terminals_enable`
+|boolean
+|`false`
+|Renders two terminals stacked vertically in one tab instead of a single terminal tab.
+
+|`ocp4_workload_showroom_stacked_terminals_display_name`
+|string
+|`Terminals`
+|Tab label when stacked terminals are enabled.
+
+|`ocp4_workload_showroom_second_terminal_tab_enable`
+|boolean
+|`false`
+|Adds a second, separate terminal tab (ignored if stacked terminals are enabled).
+
+|`ocp4_workload_showroom_second_terminal_tab_display_name`
+|string
+|`Terminal 2`
+|Label for the second terminal tab.
+|===
+
+=== NoVNC
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`ocp4_workload_showroom_novnc_enable`
+|boolean
+|`false`
+|Enable a NoVNC tab.
+
+|`ocp4_workload_showroom_novnc_vnc_server_hostport`
+|string
+|`128.0.0.1:5900`
+|VNC server address in `host:port` form.
+
+|`ocp4_workload_showroom_novnc_vnc_server_password`
+|string
+|`password`
+|VNC password.
+
+|`ocp4_workload_showroom_novnc_image`
+|string
+|`ghcr.io/rhpds/showroom-novnc:latest`
+|NoVNC container image.
+
+|`ocp4_workload_showroom_novnc_requests_cpu` / `_memory`
+|string
+|`50m` / `256Mi`
+|NoVNC container requests.
+
+|`ocp4_workload_showroom_novnc_limits_cpu` / `_memory`
+|string
+|`550m` / `256Mi`
+|NoVNC container limits.
+|===
+
+=== Cloud Provider Tab
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`ocp4_workload_showroom_cloud_image`
+|string
+|`quay.io/rhpds/showroom-cloud:v1.1.3`
+|Container image for the cloud-provider credentials tab.
+|===
+
+This tab is enabled automatically whenever `auth_cloud_provider` is defined and not `none`; it isn't gated by a dedicated `ocp4_workload_showroom_*_enable` variable. It surfaces AWS credentials/console info from `aws_sandbox_provision_data` or Azure service-principal info from `azure_sandbox_provision_data` — both are standard AgnosticD sandbox facts, not variables owned by this role.
+
+=== IronRDP
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`ocp4_workload_showroom_ironrdp_enable`
+|boolean
+|`false`
+|Enable a browser-based RDP tab (for Windows hosts) via IronRDP.
+
+|`ocp4_workload_showroom_ironrdp_image`
+|string
+|`quay.io/agonzalezrh/ironrdp:v0.0.2`
+|IronRDP container image.
+|===
+
+The RDP password is read from `_showroom_user_data.windows_password` (no default; set it via `user_data` or `showroom_vars`).
+
+=== Zero-Touch Automation
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`ocp4_workload_showroom_automation_disable`
+|boolean
+|`false`
+|If `true`, disables both the `setup_automation` and `runtime_automation` containers.
+
+|`showroom_automation_environment_variables`
+|dict
+|`{}`
+|Environment variables passed to *both* the setup and runtime automation containers.
+
+|`showroom_setup_automation_environment_variables`
+|dict
+|`{{ showroom_automation_environment_variables }}`
+|Override environment variables for the setup automation container only.
+
+|`showroom_runtime_automation_environment_variables`
+|dict
+|`{{ showroom_automation_environment_variables }}`
+|Override environment variables for the runtime automation container only.
+|===
+
+The setup automation container's vault password is read from `_showroom_user_data.vault_password` (no default).
+
+=== Pod Wait / Failure Diagnostics
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`ocp4_workload_showroom_wait_retries`
+|integer
+|`300`
+|Retries (5s delay each) waiting for the Showroom pod to become fully ready before failing, in `deploy-showroom-helm.yaml`.
+
+|`ocp4_workload_showroom_fatal_container_reasons`
+|list
+|`[CrashLoopBackOff]`
+|Container waiting-state reasons treated as potentially unrecoverable.
+
+|`ocp4_workload_showroom_fatal_container_restart_threshold`
+|integer
+|`3`
+|Restart count at which a container stuck in one of the reasons above is treated as unrecoverable, failing fast instead of waiting out the full `ocp4_workload_showroom_wait_retries` budget.
+|===
+
+=== Namespace / Domain Resolution
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`ocp4_workload_showroom_use_sandbox_domain`
+|boolean
+|`true`
+|When `true` (default), uses `sandbox_openshift_apps_domain` directly instead of looking up the cluster's `Ingress` config — needed for CNV sandboxes, which this role targets by default. Set to `false` if deploying to a regular OpenShift cluster where `sandbox_openshift_apps_domain` isn't set.
+
+|`ocp4_workload_showroom_route_omit_host`
+|boolean
+|`false`
+|When `true`, omits `spec.host` on the Route so OpenShift generates it (zerotouch chart only).
+|===
+
+=== Advanced / Optional (no default)
+
+These have no entry in `defaults/main.yaml` — they're opt-in and safe to leave unset:
+
+[cols="1,1,3",options="header"]
+|===
+|Variable |Type |Description
+
+|`ocp4_workload_showroom_openshift_api_url` / `_token`
+|string
+|Remote cluster host/token. See <<auth>>.
+
+|`showroom_openshift_api_url` / `_token` / `_ca_cert`
+|string
+|Remote cluster kubeconfig inputs. See <<auth>>.
+
+|`ocp4_workload_showroom_passthrough_user_data`
+|boolean
+|If `true`, copies `agnosticd_passthrough_user_data` into every `userN` entry in `user_data` before deployment.
+
+|`ocp4_workload_showroom_services`
+|list of dicts (`name`, optional `user_data_url_key`)
+|Logs the resolved URL for each named service found in `user_data` (debug-only; for callers wiring additional tab services alongside this role).
+|===
+
+== Multi-User
+
+Multi-user mode is automatic: if `_showroom_user_data` (loaded from `user_data`) has a `users` map, the role loops once per user in `workload.yml`, `report-variables.yaml`, and `remove_workload.yml`, deploying one namespace/pod/route per user (`ocp4_workload_showroom_namespace-<user>`). Each user's `content.user_data` is that user's entry from `users` merged with `showroom_vars` and helper keys (`guid`, `user`).
+
+== Examples
+
+=== Minimal Single-User Deployment
+
+[source,yaml]
+----
+guid: "abc123"
+ocp4_workload_showroom_content_git_repo: "https://github.com/myorg/my-lab-content.git"
+ocp4_workload_showroom_content_git_repo_ref: main
+----
+
+Include the role in your `env_type`'s infra workloads:
 
 [source,yaml]
 ----
 infra_workloads:
 [ ... all your other infra roles ... ]
-- ocp4_workload_showroom   # last
+- agnosticd.showroom.zerotouch_showroom   # last
 ----
 
-== Which "showroom" repo of antora and asciidoc to deploy?
+=== Shared / CNV Sandbox Cluster (ambient auth)
+
+This is the pattern this role was ported from — no explicit `ocp4_workload_showroom_openshift_api_url`/`_token`, relying on `module_defaults` set by the calling play (see <<auth>>):
 
 [source,yaml]
 ----
-ocp4_workload_showroom_content_git_repo: "https://github.com/rhpds/showroom_template_default.git"
-# Optional: tag, branch, etc. Default is main.
-ocp4_workload_showroom_content_git_repo_ref: main
-----
-
-[#env_type]
-== Update your `config/env_type` to support showroom on ocp
-
-. Add the following to your config/env-type's post_software.yml.
-It needs a bastion, afaict.
-
-.`config/env_type/post_software.yml`
-+
-.Example
-[source,yaml]
-----
-    - name: Deploy Showroom
-      when: showroom_deploy_shared_cluster_enable | default(false) | bool
+- name: Showroom deployer
+  hosts: localhost
+  module_defaults:
+    group/k8s:
+      host: "{{ sandbox_openshift_api_url }}"
+      api_key: "{{ sandbox_openshift_api_key }}"
+      validate_certs: false
+  tasks:
+    - name: Deploy Showroom as pods in the sandbox namespace
       include_role:
-        name: ocp4_workload_showroom
+        name: agnosticd.showroom.zerotouch_showroom
+      vars:
+        ocp4_workload_showroom_namespace: "{{ sandbox_openshift_namespace }}"
+        ocp4_workload_showroom_use_sandbox_domain: true
 ----
 
-== Selecting the Helm Chart
+[#bastion_example]
+=== Wetty Terminal with Auto-SSH to Bastion
 
-Regardless of deployment type (below) showroom is always deployed using a Helm Chart whose source can be found at https://github.com/rhpds/showroom-deployer/charts/showroom-single-pod
+`ocp4_workload_showroom_terminal_type: wetty` and `ocp4_workload_showroom_wetty_ssh_bastion_login: true` are already the defaults, so all you need to provide is the bastion connection data in `user_data` before this role runs:
 
-If newer charts are available than the default version in the workload (`1.0.0`) you will need to specify the version to use. If you want to use another chart (careful: it needs to be compatible) you can pick that, too.
-+
-.Example
 [source,yaml]
 ----
-# Usually don't have to change the chart package URL:
-ocp4_workload_showroom_chart_package_url: https://rhpds.github.io/showroom-deployer
-
-# Usually don't have to change the chart name:
-ocp4_workload_showroom_deployer_chart_name: showroom-single-pod
-
-# Pick the latest chart available from https://github.com/rhpds/showroom-deployer/releases
-ocp4_workload_showroom_deployer_chart_version: "1.0.0"
-----
-
-== Picking Deployment Type
-
-If you don't pick a deployment type the default is `helm` cli locally (on the bastion) If `helm` is not available it will be installed first.
-
-To use `ArgoCD` you need to give the right permissions to the system ArgoCd by using the workload and workload options as specified.
-+
-.Example
-[source,yaml]
-----
-# How to deploy Showroom. Options are `helm` and `argocd`
-# For `argocd' ocop4_workload_openshift_gitops must have been deployed first with the following options:
-# (OpenShift GitOps 1.10 or newer is preferred but it should work just as well with older versions)
-#   ocp4_workload_openshift_gitops_channel: gitops-1.10
-#   ocp4_workload_openshift_gitops_setup_cluster_admin: true
-#   ocp4_workload_openshift_gitops_update_route_tls: true
-#   ocp4_workload_openshift_gitops_rbac_update: true
-# Deploying using `argocd` without these options will fail
-ocp4_workload_showroom_deployment_type: argocd
-----
-
-== Show just lab instructions (whole window)
-
-. To show just lab instructions and no terminal simply set the repo variables and then set the variable to show content only. Any settings for terminals will be ignored.
-+
-.Example
-[source,yaml]
-----
-ocp4_workload_showroom_content_git_repo: "https://github.com/rhpds/showroom_template_default.git"
-ocp4_workload_showroom_content_git_repo_ref: main
-
-ocp4_workload_showroom_content_only: true
-----
-
-== Enable Bastion Auto-SSH in your env_type/config
-
-This is only possible for the `wetty` terminal.
-
-. Make sure your env_type/config puts the following values in user_data:
-+
-.Example
-[source,yaml]
-----
-- name: Provide installed bastion data
-  agnosticd_user_info:
+- name: Provide bastion connection data
+  agnosticd.core.agnosticd_user_info:
     data:
-      bastion_ssh_command: "ssh {{ remote_user }}@bastion.{{ guid }}.{{ azure_root_dns_zone }}"
       bastion_public_hostname: "bastion.{{ guid }}.{{ cluster_dns_zone }}"
       bastion_ssh_user_name: "{{ remote_user }}"
       bastion_ssh_password: "{{ generated_password }}"
 ----
 
-. Set up your config for Wetty and automatic ssh:
-+
-.Example
+To use the `showroom` containerized terminal instead, override the type explicitly:
+
 [source,yaml]
 ----
-# Select wetty as the terminal type
-ocp4_workload_showroom_terminal_type: wetty
-
-# Change the image if you want a different image. Otherwise this line is
-# the default
-ocp4_workload_showroom_wetty_image: docker.io/wettyoss/wetty:latest
-
-# Set auto login to true:
-ocp4_workload_showroom_wetty_ssh_bastion_login: true
-----
-
-[NOTE]
-====
-Key based authentication is TODO
-====
-
-== Running terminal in a pod
-
-Showroom also includes the capability to run the terminal in a pod rather than ssh-ing to the bastion. This enables use cases without bastions - and it also enables multi-user showroom deployments.
-
-Multi-user showroom is automatic - if the `user-data.yaml` has individual user data then showroom is automatically deployed in multi-user mode.
-
-=== Available terminal container images
-
-There are a number of container images available to be used as a terminal.
-
-Source code for the images below is available at https://github.com/rhpds/openshift-showroom-terminal-image
-
-* *Base Image:* this image has the base capability to run on OpenShift but it has no tools installed besides the bare-bones Linux tools
-** `quay.io/rhpds/openshift-showroom-terminal-baseimage:latest`
-* *OCP Image:* this image builds on top of the base image and additionally has all necessary OpenShift tools installed (oc, tkn, kn, ...)
-** `quay.io/rhpds/openshift-showroom-terminal-ocp:latest`
-* *ROSA Image:* this image builds on top of the OCP image and additionally has `rosa` and `aws` installed.
-** `quay.io/rhpds/openshift-showroom-terminal-rosa:latest`
-* *ARO Image:* this image builds on top of the OCP image and additionally has `az` (Azure CLI) installed.
-** `quay.io/rhpds/openshift-showroom-terminal-aro:latest`
-
-If you need specialized tools it is suggested to start with one of the above and add your tools to the image.
-
-=== Configuring OpenShift Terminal
-
-In order to use the terminal pod set the terminal type to `showroom`, set the and set the image you need.
-+
-.Example
-[source,yaml]
-----
-# Select showroom as the terminal type
 ocp4_workload_showroom_terminal_type: showroom
-
-# Change the image if you want a different image. Otherwise this line is
-# the default
-ocp4_workload_showroom_terminal_image: quay.io/rhpds/openshift-showroom-terminal-ocp:latest
 ----
 
-[#shared_cluster]
-== Deploying Showroom to the Shared Cluster
+=== Multi-User Workshop Deployment
 
-. Add the following to AgnosticV
+Ensure `user_data` contains a `users` map:
 
-.AgnosticV
 [source,yaml]
 ----
-#include /includes/secrets/showroom-shared-410.yaml <1>
-
-# --------------------------------------------------------------------
-# Showroom
-# --------------------------------------------------------------------
-showroom_deploy_shared_cluster_enable: true <2>
-ocp4_workload_showroom_content_git_repo: https://github.com/rhpds/showroom_template_default.git
+users:
+  user1:
+    bastion_public_hostname: "bastion1.example.com"
+  user2:
+    bastion_public_hostname: "bastion2.example.com"
 ----
+
+The role deploys one namespace/pod/route per user, e.g. `showroom-<guid>-user1` and `showroom-<guid>-user2`.
+
+=== ArgoCD Deployment
+
+Requires OpenShift GitOps already deployed with cluster-admin RBAC for the system ArgoCD:
+
+[source,yaml]
+----
+ocp4_workload_showroom_deployment_type: argocd
+----
+
+Remember the ArgoCD templates render a reduced value set — see the note under <<deployment_types>>.
+
+[#gotchas]
+== Known Gotchas
+
+* `ocp4_workload_showroom_namespace_display`, `ocp4_workload_showroom_helm_version`, `ocp4_workload_showroom_tools_root_url`, `tmp_dir`, `tmp_kubeconfig`, and `ocp_username` are all declared in `defaults/main.yaml` but are not referenced anywhere under `tasks/` — they're leftovers from the v1 role and currently have no effect. In particular, `check-and-install-helm.yaml` downloads Helm from a hardcoded S3 URL regardless of `ocp4_workload_showroom_tools_root_url`/`_helm_version`.
+* The `argocd` deployment type renders fewer chart values than `helm` — see the note under <<deployment_types>>.
+* The default chart name/version (`zerotouch` chart, `1.10.2`) and several other defaults (terminal type, wetty auto-SSH, zero-touch bundle/UI, Antora UI bundle, cloud image, `use_sandbox_domain`) are pinned to match real ZT RHEL BU production usage — see <<chart_note>> and the per-section tables above for what changed from the plain upstream/v1 defaults.
+* `ocp4_workload_showroom_openshift_api_url`/`_token` and `showroom_openshift_api_url`/`_token`/`_ca_cert` are similarly named but distinct mechanisms — see <<auth>>.
