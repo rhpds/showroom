@@ -23,6 +23,9 @@
     - _showroom_user_data.bastion_ssh_user_name is defined
     kubernetes.core.k8s:
       kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+      host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+      api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+      validate_certs: false
       state: absent
       definition: "{{ lookup('template', 'application.yaml.j2') }}"
 
@@ -34,13 +37,26 @@
     - _showroom_user_data.bastion_ssh_user_name is defined
     kubernetes.core.k8s:
       kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+      host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+      api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+      validate_certs: false
       state: absent
       definition: "{{ lookup('template', 'applicationset.yaml.j2') }}"
 
+# On CNV sandboxes the namespace is the shared sandbox namespace (also
+# hosting the VMs), not one this role self-provisioned - the sandbox SA
+# lacks cluster-scoped permission to delete a Project it didn't create
+# (same RBAC restriction that gates namespace creation in
+# setup-namespace.yaml), so this fails harmlessly via ignore_errors
+# instead of deleting shared resources. Actual teardown of the sandbox
+# namespace happens at the infra/cloud-provider level, not here.
 - name: Remove Projects (single user)
   when: not _showroom_user_data.users is defined
   kubernetes.core.k8s:
     kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
     state: absent
     definition:
       apiVersion: project.openshift.io/v1
@@ -56,6 +72,9 @@
     _showroom_namespace: "{{ ocp4_workload_showroom_namespace }}-{{ _showroom_user }}"
   kubernetes.core.k8s:
     kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
     state: absent
     definition:
       apiVersion: project.openshift.io/v1

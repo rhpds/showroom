@@ -7,6 +7,9 @@
 - name: Get showroom namespace
   kubernetes.core.k8s_info:
     kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
     api_version: project.openshift.io/v1
     kind: Project
     name: "{{ _showroom_namespace }}"
@@ -18,6 +21,9 @@
   when: r_get_showroom_namespace.resources | default([]) | length == 0
   kubernetes.core.k8s:
     kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
     definition:
       apiVersion: project.openshift.io/v1
       kind: ProjectRequest
@@ -39,6 +45,9 @@
   - name: Create a test object in the showroom namespace to validate self-provisioner with retries
     kubernetes.core.k8s:
       kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+      host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+      api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+      validate_certs: false
       state: present
       definition:
         apiVersion: v1
@@ -54,6 +63,9 @@
   - name: Remove test object
     kubernetes.core.k8s:
       kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+      host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+      api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+      validate_certs: false
       state: absent
       definition:
         apiVersion: v1
