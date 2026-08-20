@@ -43,10 +43,12 @@
 
     - name: Create Helm Bash completion file
       ansible.builtin.shell: /usr/local/bin/helm completion bash >/etc/bash_completion.d/helm
+      changed_when: true
 
   - name: Get helm version
-    ansible.builtin.shell: /usr/local/bin/helm version
+    ansible.builtin.command: /usr/local/bin/helm version
     register: r_helm_version
+    changed_when: false
 
   - name: Emit Helm version
     ansible.builtin.debug:

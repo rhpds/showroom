@@ -40,15 +40,15 @@
         registry_pull_token: "{{ registry_pull_token | default('') }}"
       route:
         hostSuffix: "{{ _showroom_user | default('') }}"
-        omitHost: "{{ (ocp4_workload_showroom_route_omit_host | bool) | ternary('true','false') }}"
+        omitHost: "{{ (ocp4_workload_showroom_route_omit_host | bool) | ternary('true', 'false') }}"
       stacked_terminals:
         setup: "{{ ocp4_workload_showroom_stacked_terminals_enable | bool | string | lower }}"
         display_name: "{{ ocp4_workload_showroom_stacked_terminals_display_name }}"
         top: "{{ 'terminal' if ocp4_workload_showroom_terminal_type == 'showroom' else ocp4_workload_showroom_terminal_type }}"
         bottom: "{{ 'terminal' if ocp4_workload_showroom_terminal_type == 'showroom' else ocp4_workload_showroom_terminal_type }}"
       second_terminal_tab:
-        setup: "{{ (true if ( ocp4_workload_showroom_second_terminal_tab_enable
-                         and not ocp4_workload_showroom_stacked_terminals_enable )
+        setup: "{{ (true if (ocp4_workload_showroom_second_terminal_tab_enable
+                         and not ocp4_workload_showroom_stacked_terminals_enable)
                          else false) | bool | string | lower }}"
         display_name: "{{ ocp4_workload_showroom_second_terminal_tab_display_name }}"
       terminal:
@@ -125,7 +125,7 @@
         azure_resourcegroup: "{{ azure_sandbox_provision_data.azure_resource_group | default('') }}"
 
       ironrdp:
-        setup: "{{ ('true' if ocp4_workload_showroom_ironrdp_enable | bool  else 'false') | string | lower }}"
+        setup: "{{ ('true' if ocp4_workload_showroom_ironrdp_enable | bool else 'false') | string | lower }}"
         image: "{{ ocp4_workload_showroom_ironrdp_image }}"
         server: "windows"
         user: "Administrator"
@@ -133,10 +133,10 @@
         jetserver: "localhost:7171"
         tokengenserver: "localhost:8081"
       runtime_automation:
-        setup: "{{ ('false' if ocp4_workload_showroom_automation_disable | bool  else 'true') | string | lower }}"
+        setup: "{{ ('false' if ocp4_workload_showroom_automation_disable | bool else 'true') | string | lower }}"
         environment_variables: "{{ showroom_runtime_automation_environment_variables }}"
       setup_automation:
-        setup: "{{ ('false' if ocp4_workload_showroom_automation_disable | bool  else 'true') | string | lower }}"
+        setup: "{{ ('false' if ocp4_workload_showroom_automation_disable | bool else 'true') | string | lower }}"
         vault_password: "{{ _showroom_user_data.vault_password | default('') }}"
         environment_variables: "{{ showroom_setup_automation_environment_variables }}"
   register: r_helm_templates
