@@ -13,7 +13,7 @@
   when:
   - agnosticd_passthrough_user_data is defined
   - ocp4_workload_showroom_passthrough_user_data is true | default(false) | bool
-  agnosticd_user_info:
+  agnosticd.core.agnosticd_user_info:
     data: "{{ agnosticd_passthrough_user_data | default('', true) }}"
     user: "user{{ n }}"
   loop: "{{ range(1, num_users | int + 1) | list }}"
@@ -22,7 +22,7 @@
 
 - name: Set showroom_user_data fact from lookup - global value
   ansible.builtin.set_fact:
-    _showroom_user_data: "{{ _showroom_user_data | combine(lookup('agnosticd_user_data', '*')) }}"
+    _showroom_user_data: "{{ _showroom_user_data | combine(lookup('agnosticd.core.agnosticd_user_data', '*')) }}"
 
 - name: Set fact _user_count
   when: _showroom_user_data.users is defined
