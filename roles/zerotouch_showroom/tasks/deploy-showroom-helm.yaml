@@ -141,6 +141,9 @@
         vault_password: "{{ _showroom_user_data.vault_password | default('') }}"
         environment_variables: "{{ showroom_setup_automation_environment_variables }}"
   register: r_helm_templates
+  retries: 5
+  delay: 30
+  until: r_helm_templates is not failed
 
 - name: Deploy rendered manifests to OpenShift
   no_log: true
@@ -150,6 +153,10 @@
     api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
     validate_certs: false
     definition: "{{ r_helm_templates.stdout | from_yaml_all }}"
+  register: r_deploy_manifests
+  retries: 20
+  delay: 3
+  until: r_deploy_manifests is not failed
 
 - name: Wait for showroom pod to be created using label selector
   kubernetes.core.k8s_info:
