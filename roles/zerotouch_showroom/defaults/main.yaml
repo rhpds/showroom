@@ -1,0 +1,181 @@
+---
+become_override: false
+silent: false
+
+# Connection to cluster to deploy to. Matches the ocp4_workload_showroom
+# role's convention (agnosticd.showroom collection) so callers already
+# setting those vars for that role work here unchanged. Only set when
+# not relying on ambient module_defaults/environment (e.g. group/k8s,
+# K8S_AUTH_HOST/K8S_AUTH_API_KEY) provided by the calling play.
+# ocp4_workload_showroom_openshift_api_token: "{{ sandbox_openshift_api_key }}"
+# ocp4_workload_showroom_openshift_api_url: "{{ sandbox_openshift_api_url }}"
+
+ocp4_workload_showroom_name: "showroom"
+ocp4_workload_showroom_namespace: "showroom-{{ guid | default('00000') }}"
+
+# Content repository to be rendered as lab instructions
+ocp4_workload_showroom_content_git_repo: https://github.com/rhpds/showroom_template_default.git
+ocp4_workload_showroom_content_git_repo_ref: main
+
+# Which Antora Playbook to use in the content repo
+ocp4_workload_showroom_content_antora_playbook: default-site.yml
+
+# Only display the content pane, no other tabs will be available
+ocp4_workload_showroom_content_only: false
+
+# Title of the index.html
+ocp4_workload_showroom_content_title: Showroom
+
+# Which terminal to deploy:
+# - wetty: deploy the wetty terminal image. You can then set
+#          ocp4_workload_showroom_wetty_ssh_bastion_login to true
+#          to automatically ssh to a bastion
+# - showroom: deploy the showroom terminal image
+# - "": No terminal deployed
+# Default to wetty (auto-SSH to bastion) - this is real ZT RHEL BU's
+# production choice (zt-rhel-bu-lab-developer-cnv/common.yaml) and matches
+# the whole point of the zerotouch chart's wetty auto-login feature.
+ocp4_workload_showroom_terminal_type: wetty
+
+# Enable vertically stacked terminals in one tab
+# terminal_types as above
+ocp4_workload_showroom_stacked_terminals_enable: false
+ocp4_workload_showroom_stacked_terminals_display_name: "Terminals"
+
+# Enable a second terminal TAB in the Showroom Pod
+# terminal_types as above
+# Will be false if ocp4_workload_showroom_stacked_terminals_enable is true
+ocp4_workload_showroom_second_terminal_tab_enable: false
+ocp4_workload_showroom_second_terminal_tab_display_name: "Terminal 2"
+
+# Requests and limits for the terminal pod (same vars for either showroom or wetty)
+ocp4_workload_showroom_terminal_requests_cpu: 50m
+ocp4_workload_showroom_terminal_requests_memory: 256Mi
+ocp4_workload_showroom_terminal_limits_cpu: 500m
+ocp4_workload_showroom_terminal_limits_memory: 1Gi
+
+# Matches the version real ZT RHEL BU currently runs
+# (zt-rhel-bu-lab-developer-cnv/dev.yaml).
+ocp4_workload_showroom_content_image: quay.io/rhpds/showroom-content:v1.4.2
+
+# Whether to render a terminal at all (zerotouch chart honors this; the
+# generic showroom-single-pod chart always shows one). Kept configurable
+# (v1 default) rather than hardcoded, so callers can opt out.
+ocp4_workload_showroom_terminal_enable: true
+
+# Showroom Terminal Image. Options include:
+# - quay.io/rhpds/openshift-showroom-terminal-ocp:latest
+# - quay.io/rhpds/openshift-showroom-terminal-rosa:latest
+# - quay.io/rhpds/openshift-showroom-terminal-aro:latest
+ocp4_workload_showroom_terminal_image: quay.io/rhpds/openshift-showroom-terminal-ocp:latest
+# Wetty Image
+# Don't use docker.io, I made a copy onto quay.io/rhpds
+# Pinned to match real ZT RHEL BU production (zt-rhel-bu-lab-developer-cnv/
+# common.yaml) rather than "latest".
+ocp4_workload_showroom_wetty_image: quay.io/rhpds/wetty:v2.5
+
+# Log into bastion automatically from wetty
+# applies to both primary and seconary wetty terminals
+# Defaults to true here (unlike the generic role) - this is the entire
+# point of ZT's wetty terminal, and matches real RHEL BU production.
+ocp4_workload_showroom_wetty_ssh_bastion_login: true
+
+# deploy a VNC client in a new tab
+ocp4_workload_showroom_novnc_enable: false
+ocp4_workload_showroom_novnc_vnc_server_hostport: 128.0.0.1:5900
+ocp4_workload_showroom_novnc_vnc_server_password: password
+ocp4_workload_showroom_novnc_image: ghcr.io/rhpds/showroom-novnc:latest
+ocp4_workload_showroom_novnc_requests_cpu: 50m
+ocp4_workload_showroom_novnc_requests_memory: 256Mi
+ocp4_workload_showroom_novnc_limits_cpu: 550m
+ocp4_workload_showroom_novnc_limits_memory: 256Mi
+
+# The service name to look for when waiting for the created route
+# Usually `showroom-proxy` for multi-pod deployment and `showroom` for single pod deployment
+ocp4_workload_showroom_service_name: "{{ ocp4_workload_showroom_name }}"
+
+# How to deploy Showroom. Options are `helm` and `argocd`
+# For `argocd' ocop4_workload_openshift_gitops must have been deployed first with the following options:
+# (OpenShift GitOps 1.10 or newer is preferred but it should work just as well with older versions)
+#   ocp4_workload_openshift_gitops_channel: gitops-1.10
+#   ocp4_workload_openshift_gitops_setup_cluster_admin: true
+#   ocp4_workload_openshift_gitops_update_route_tls: true
+#   ocp4_workload_openshift_gitops_rbac_update: true
+# Deploying using `argocd` without these options will fail
+ocp4_workload_showroom_deployment_type: helm
+
+# Helm Chart to use for Showroom. This role is zerotouch-chart-specific
+# (its release_values schema matches that chart, not showroom-single-pod),
+# so unlike the generic ocp4_workload_showroom role, default straight to it.
+# Source registry: https://github.com/rhpds/showroom-deployer
+ocp4_workload_showroom_chart_package_url: https://rhpds.github.io/showroom-deployer
+ocp4_workload_showroom_deployer_chart_name: zerotouch
+# Matches the version real ZT RHEL BU currently runs
+# (zt-rhel-bu-lab-developer-cnv/common.yaml and dev.yaml). Available
+# versions are at https://github.com/rhpds/showroom-deployer/releases
+ocp4_workload_showroom_deployer_chart_version: "1.10.2"
+# Default zero-touch bundle version - matches real ZT RHEL BU production
+# (zt-rhel-bu-lab-developer-cnv/dev.yaml, the most current of the values
+# found in that catalog item's common.yaml/dev.yaml pair).
+ocp4_workload_showroom_zero_touch_bundle: "https://github.com/rhpds/nookbag/releases/download/nookbag-v0.3.6/nookbag-v0.3.6.zip"
+
+# Override the Antora UI bundle URL to use a custom theme
+# When empty, the default theme from the content repo's site.yml is used.
+# Defaults to ZT's own nookbag-bundle theme, matching real RHEL BU
+# production (zt-rhel-bu-lab-developer-cnv/common.yaml) - every real ZT
+# usage found overrides this the same way, so it belongs here as the
+# role's own default rather than repeated per catalog item.
+ocp4_workload_showroom_antora_ui_bundle_url: "https://github.com/rhpds/nookbag-bundle/releases/download/v0.0.3/ui-bundle.zip"
+
+# When true, use sandbox_openshift_apps_domain directly instead of looking
+# up the cluster's Ingress config for the apps domain. Always true for
+# CNV sandboxes, which don't expose (or need) the generic Ingress lookup -
+# and matches real ZT RHEL BU production (which always sets this true).
+ocp4_workload_showroom_use_sandbox_domain: true
+
+# When true, omit Route host and let OpenShift generate it (zerotouch chart only)
+ocp4_workload_showroom_route_omit_host: false
+
+ocp4_workload_showroom_wait_retries: 300
+
+# Container waiting-state reasons that may mean the pod will not recover on its own.
+ocp4_workload_showroom_fatal_container_reasons:
+  - CrashLoopBackOff
+
+# Number of restarts to tolerate before treating a container stuck in one of
+# ocp4_workload_showroom_fatal_container_reasons as unrecoverable and failing
+# fast, instead of waiting out the full ocp4_workload_showroom_wait_retries budget.
+ocp4_workload_showroom_fatal_container_restart_threshold: 3
+
+# URL to download Helm from if it's not already there (for Helm type deployment)
+ocp4_workload_showroom_tools_root_url: https://mirror.openshift.com/pub/openshift-v4/clients
+ocp4_workload_showroom_helm_version: latest
+
+ocp4_workload_showroom_test_self_provisioner: false
+
+# Defaults to true here (unlike the generic role) - the "zero touch UI" is
+# ZT's defining feature, and every real ZT usage found enables it.
+ocp4_workload_showroom_zero_touch_ui_enabled: true
+
+# Matches the version real ZT RHEL BU currently runs
+# (zt-rhel-bu-lab-developer-cnv/common.yaml).
+ocp4_workload_showroom_cloud_image: quay.io/rhpds/showroom-cloud:v1.1.3
+
+ocp4_workload_showroom_ironrdp_enable: false
+ocp4_workload_showroom_ironrdp_image: quay.io/agonzalezrh/ironrdp:v0.0.2
+ocp4_workload_showroom_automation_disable: false
+
+# defaults for _showroom_user_data so env destroys don't fail
+_showroom_user_data:
+  bastion_public_hostname: 'test_hostname'
+  bastion_ssh_password: 'test_password'
+  bastion_ssh_user_name: 'test_user_name'
+
+# Public overrides merged into _showroom_vars after _showroom_user_data.
+showroom_vars: {}
+
+# Environment variables passed to zerotouch automation pods.
+# Set one dict for both pods, or override runtime vs setup independently.
+showroom_automation_environment_variables: {}
+showroom_runtime_automation_environment_variables: "{{ showroom_automation_environment_variables }}"
+showroom_setup_automation_environment_variables: "{{ showroom_automation_environment_variables }}"

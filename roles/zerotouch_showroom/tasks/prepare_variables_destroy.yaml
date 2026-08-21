@@ -1,0 +1,23 @@
+---
+# Resolve user data without asserting provision-time variables.
+# Only guid and the user list are needed to compute namespace names for
+# removal. The namespace default (showroom-{{ guid | default('00000') }})
+# from defaults/main.yaml always resolves, even if guid is missing.
+- name: Set showroom_user_data fact for destroy
+  ansible.builtin.set_fact:
+    _showroom_user_data: >-
+      {{ _showroom_user_data | default({})
+         | combine(lookup('agnosticd.core.agnosticd_user_data', '*')) }}
+  failed_when: false
+
+- name: Warn if user_data lookup failed (may orphan per-user namespaces)
+  when: _showroom_user_data | default({}) | length == 0
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: agnosticd_user_data lookup returned nothing.
+      If this is a multi-user environment, per-user namespaces will NOT be cleaned up.
+
+- name: Set fact _user_count
+  when: _showroom_user_data.users is defined
+  ansible.builtin.set_fact:
+    _user_count: "{{ _showroom_user_data['users'] | length }}"

@@ -1,0 +1,78 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ ocp4_workload_showroom_namespace | to_json }}
+  namespace: openshift-gitops
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    name: ''
+    namespace: {{ ocp4_workload_showroom_namespace | to_json }}
+    server: https://kubernetes.default.svc
+  project: default
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
+  source:
+    repoURL: {{ ocp4_workload_showroom_chart_package_url | to_json }}
+    chart: {{ ocp4_workload_showroom_deployer_chart_name | to_json }}
+    targetRevision: {{ ocp4_workload_showroom_deployer_chart_version | to_json }}
+    helm:
+      releaseName: {{ ocp4_workload_showroom_name | to_json }}
+      values: |
+        guid: {{ guid | to_json }}
+        deployer:
+          domain: {{ _deployer_domain | to_json }}
+        terminal:
+          setup: "{{ ('true' if ocp4_workload_showroom_terminal_type == 'showroom' else 'false') | string | lower }}"
+          image: {{ ocp4_workload_showroom_terminal_image | to_json }}
+          resources:
+            requests:
+              cpu: "{{ ocp4_workload_showroom_terminal_requests_cpu }}"
+              memory: "{{ ocp4_workload_showroom_terminal_requests_memory }}"
+            limits:
+              cpu: "{{ ocp4_workload_showroom_terminal_limits_cpu }}"
+              memory: "{{ ocp4_workload_showroom_terminal_limits_memory }}"
+        wetty:
+          setup: "{{ ('true' if ocp4_workload_showroom_terminal_type == 'wetty' else 'false') | string | lower }}"
+          image: {{ ocp4_workload_showroom_wetty_image | to_json }}
+          resources:
+            requests:
+              cpu: "{{ ocp4_workload_showroom_terminal_requests_cpu }}"
+              memory: "{{ ocp4_workload_showroom_terminal_requests_memory }}"
+            limits:
+              cpu: "{{ ocp4_workload_showroom_terminal_limits_cpu }}"
+              memory: "{{ ocp4_workload_showroom_terminal_limits_memory }}"
+          ssh:
+            sshHost: {{ _showroom_user_data.bastion_public_hostname | to_json }}
+            autoSshToBastion: "{{ ('true' if ocp4_workload_showroom_wetty_ssh_bastion_login | bool else 'false') | string | lower }}"
+            sshAuth: password
+            sshUser: {{ _showroom_user_data.bastion_ssh_user_name | to_json }}
+            sshPass: {{ _showroom_user_data.bastion_ssh_password | to_json }}
+            sshPort: "{{ _showroom_user_data.bastion_ssh_port | default(22) }}"
+        content:
+          repoUrl: {{ ocp4_workload_showroom_content_git_repo | to_json }}
+          repoRef: {{ ocp4_workload_showroom_content_git_repo_ref | to_json }}
+          antoraPlaybook: {{ ocp4_workload_showroom_content_antora_playbook | to_json }}
+          contentOnly: "{{ ocp4_workload_showroom_content_only | string | lower }}"
+          user_data: |-
+            {{ _showroom_user_data | to_nice_yaml | indent(12) }}
+          zero_touch_bundle: {{ ocp4_workload_showroom_zero_touch_bundle | to_json }}
+          zero_touch_ui_enabled: "{{ ocp4_workload_showroom_zero_touch_ui_enabled | string | lower }}"
+        cloud:
+          setup: "{{ ('false' if auth_cloud_provider | default('none') == 'none' else 'true') | string | lower }}"
+          image: {{ ocp4_workload_showroom_cloud_image | to_json }}
+          auth_cloud_provider: "{{ auth_cloud_provider | default('none') }}"
+          aws_access_key_id: "{{ aws_sandbox_provision_data.aws_access_key_id | default('') }}"
+          aws_secret_access_key: "{{ aws_sandbox_provision_data.aws_secret_access_key | default('') }}"
+          azure_subscription: "{{ azure_sandbox_provision_data.azure_subscription | default('') }}"
+          azure_tenant: "{{ azure_sandbox_provision_data.azure_tenant_id | default('') }}"
+          azure_client_id: "{{ azure_sandbox_provision_data.azure_service_principal_id | default('') }}"
+          azure_password: "{{ azure_sandbox_provision_data.azure_service_principal_password | default('') }}"
+          azure_resourcegroup: "{{ azure_sandbox_provision_data.azure_resource_group | default('') }}"
+

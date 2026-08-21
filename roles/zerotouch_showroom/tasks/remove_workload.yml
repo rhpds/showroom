@@ -1,0 +1,134 @@
+---
+# Implement your workload removal tasks here
+# ------------------------------------------
+
+# This playbook is called upon deletion of the environment
+# OpenShift resources get deleted automatically
+#
+# Leave this as the last task in the playbook.
+# --------------------------------------------
+
+- name: Prepare Variables
+  ansible.builtin.include_tasks: prepare_variables_destroy.yaml
+
+- name: Remove via Argo when present
+  when: ocp4_workload_showroom_deployment_type == "argocd"
+  block:
+
+  - name: Remove showroom Application (single user)
+    when:
+    - _showroom_user_data.users is undefined
+    - _showroom_user_data.bastion_public_hostname is defined
+    - _showroom_user_data.bastion_ssh_password is defined
+    - _showroom_user_data.bastion_ssh_user_name is defined
+    kubernetes.core.k8s:
+      kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+      host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+      api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+      validate_certs: false
+      state: absent
+      definition: "{{ lookup('template', 'application.yaml.j2') }}"
+
+  - name: Remove showroom ApplicationSet (multi user)
+    when:
+    - _showroom_user_data.users is defined
+    - _showroom_user_data.bastion_public_hostname is defined
+    - _showroom_user_data.bastion_ssh_password is defined
+    - _showroom_user_data.bastion_ssh_user_name is defined
+    kubernetes.core.k8s:
+      kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+      host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+      api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+      validate_certs: false
+      state: absent
+      definition: "{{ lookup('template', 'applicationset.yaml.j2') }}"
+
+# On CNV sandboxes the namespace is the shared sandbox namespace (also
+# hosting the VMs), not one this role self-provisioned - the sandbox SA
+# lacks cluster-scoped permission to delete a Project it didn't create
+# (same RBAC restriction that gates namespace creation in
+# setup_namespace.yaml), so this fails harmlessly via ignore_errors
+# instead of deleting shared resources. Actual teardown of the sandbox
+# namespace happens at the infra/cloud-provider level, not here.
+- name: Remove Projects (single user)
+  when: not _showroom_user_data.users is defined
+  kubernetes.core.k8s:
+    kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    state: absent
+    definition:
+      apiVersion: project.openshift.io/v1
+      kind: Project
+      metadata:
+        name: "{{ ocp4_workload_showroom_namespace }}"
+  failed_when: false
+
+- name: Wait for showroom project to be fully removed (single user)
+  when: not _showroom_user_data.users is defined
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    api_version: project.openshift.io/v1
+    kind: Project
+    name: "{{ ocp4_workload_showroom_namespace }}"
+  register: r_wait_project_single
+  retries: 30
+  delay: 10
+  until: r_wait_project_single.resources | default([]) | length == 0
+  failed_when: false
+
+- name: Remove Projects (multi user)
+  when: _showroom_user_data.users is defined
+  vars:
+    _showroom_user: "{{ _showroom_users_item.key }}"
+    _showroom_namespace: "{{ ocp4_workload_showroom_namespace }}-{{ _showroom_user }}"
+  kubernetes.core.k8s:
+    kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    state: absent
+    definition:
+      apiVersion: project.openshift.io/v1
+      kind: Project
+      metadata:
+        name: "{{ _showroom_namespace }}"
+  failed_when: false
+  loop: >-
+    {{ _showroom_user_data.users | dict2items }}
+  loop_control:
+    loop_var: _showroom_users_item
+    label: "{{ _showroom_users_item.key }}"
+
+- name: Wait for showroom projects to be fully removed (multi user)
+  when: _showroom_user_data.users is defined
+  vars:
+    _showroom_user: "{{ _showroom_users_item.key }}"
+    _showroom_namespace: "{{ ocp4_workload_showroom_namespace }}-{{ _showroom_user }}"
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    api_version: project.openshift.io/v1
+    kind: Project
+    name: "{{ _showroom_namespace }}"
+  register: r_wait_project_multi
+  retries: 30
+  delay: 10
+  until: r_wait_project_multi.resources | default([]) | length == 0
+  failed_when: false
+  loop: >-
+    {{ _showroom_user_data.users | dict2items }}
+  loop_control:
+    loop_var: _showroom_users_item
+    label: "{{ _showroom_users_item.key }}"
+
+- name: Remove_workload tasks complete
+  when: not silent | bool
+  ansible.builtin.debug:
+    msg: "Remove Workload tasks completed successfully."

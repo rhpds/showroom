@@ -1,0 +1,393 @@
+---
+- name: Print Showroom namespace information
+  ansible.builtin.debug:
+    msg: "Setting up showroom in namespace {{ _showroom_namespace }}"
+
+- name: Setup Namespace
+  ansible.builtin.include_tasks: setup_namespace.yaml
+
+- name: Render helm chart with values
+  kubernetes.core.helm_template:
+    chart_repo_url: "{{ ocp4_workload_showroom_chart_package_url }}"
+    chart_ref: "{{ ocp4_workload_showroom_deployer_chart_name }}"
+    chart_version: "{{ ocp4_workload_showroom_deployer_chart_version }}"
+    release_name: "{{ ocp4_workload_showroom_name }}"
+    release_namespace: "{{ _showroom_namespace }}"
+    release_values:
+      content:
+        title: "{{ ocp4_workload_showroom_content_title }}"
+        image: "{{ ocp4_workload_showroom_content_image }}"
+        user_data: "{{ _showroom_vars | to_nice_yaml(width=1337, default_style='\"') }}"
+        repoUrl: "{{ ocp4_workload_showroom_content_git_repo }}"
+        repoRef: "{{ ocp4_workload_showroom_content_git_repo_ref }}"
+        antoraPlaybook: "{{ ocp4_workload_showroom_content_antora_playbook }}"
+        contentOnly: "{{ ocp4_workload_showroom_content_only | bool | string | lower }}"
+        zero_touch_bundle: "{{ ocp4_workload_showroom_zero_touch_bundle }}"
+        zero_touch_ui_enabled: "{{ ocp4_workload_showroom_zero_touch_ui_enabled | string | lower }}"
+
+      antora:
+        uiBundleUrl: "{{ ocp4_workload_showroom_antora_ui_bundle_url }}"
+
+      guid: "{{ guid }}"
+      common_password: "{{ common_password | default('') }}"
+      satellite:
+        url: "{{ satellite_url | default('') }}"
+        org: "{{ satellite_org | default('') }}"
+        activationkey: "{{ satellite_activationkey | default('') }}"
+        script: "{{ satellite_script | default('') }}"
+      deployer:
+        domain: "{{ _deployer_domain }}"
+        registry_pull_token: "{{ registry_pull_token | default('') }}"
+      route:
+        hostSuffix: "{{ _showroom_user | default('') }}"
+        omitHost: "{{ (ocp4_workload_showroom_route_omit_host | bool) | ternary('true', 'false') }}"
+      stacked_terminals:
+        setup: "{{ ocp4_workload_showroom_stacked_terminals_enable | bool | string | lower }}"
+        display_name: "{{ ocp4_workload_showroom_stacked_terminals_display_name }}"
+        top: "{{ 'terminal' if ocp4_workload_showroom_terminal_type == 'showroom' else ocp4_workload_showroom_terminal_type }}"
+        bottom: "{{ 'terminal' if ocp4_workload_showroom_terminal_type == 'showroom' else ocp4_workload_showroom_terminal_type }}"
+      second_terminal_tab:
+        setup: "{{ (true if (ocp4_workload_showroom_second_terminal_tab_enable
+                         and not ocp4_workload_showroom_stacked_terminals_enable)
+                         else false) | bool | string | lower }}"
+        display_name: "{{ ocp4_workload_showroom_second_terminal_tab_display_name }}"
+      terminal:
+        setup: "{{ ocp4_workload_showroom_terminal_enable | bool | string | lower }}"
+        image: "{{ ocp4_workload_showroom_terminal_image }}"
+        resources:
+          requests:
+            cpu: "{{ ocp4_workload_showroom_terminal_requests_cpu }}"
+            memory: "{{ ocp4_workload_showroom_terminal_requests_memory }}"
+          limits:
+            cpu: "{{ ocp4_workload_showroom_terminal_limits_cpu }}"
+            memory: "{{ ocp4_workload_showroom_terminal_limits_memory }}"
+        terminals: >-
+          {{
+            (
+              instances
+              | selectattr('consoles', 'defined')
+              | community.general.json_query('[].{name: name, terminals: consoles}')
+            )
+            +
+            (
+              containers | default([])
+              | selectattr('terminals', 'defined')
+              | community.general.json_query('[].{name: name, terminals: terminals}')
+            )
+          }}
+      wetty:
+        setup: "{{ (true if ocp4_workload_showroom_terminal_type == 'wetty' else false) | bool | string | lower }}"
+        image: "{{ ocp4_workload_showroom_wetty_image }}"
+        resources:
+          requests:
+            cpu: "{{ ocp4_workload_showroom_terminal_requests_cpu }}"
+            memory: "{{ ocp4_workload_showroom_terminal_requests_memory }}"
+          limits:
+            cpu: "{{ ocp4_workload_showroom_terminal_limits_cpu }}"
+            memory: "{{ ocp4_workload_showroom_terminal_limits_memory }}"
+        ssh:
+          autoSshToBastion: "{{ (true if ocp4_workload_showroom_wetty_ssh_bastion_login | bool else false) | bool | string | lower }}"
+          sshAuth: password
+          sshHost: "{{ _showroom_user_data.bastion_public_hostname }}"
+          sshUser: "{{ _showroom_user_data['users'][_showroom_user].bastion_ssh_user_name | default(_showroom_user_data.bastion_ssh_user_name) }}"
+          sshPass: "{{ _showroom_user_data['users'][_showroom_user].bastion_ssh_password | default(_showroom_user_data.bastion_ssh_password) }}"
+          sshPort: "{{ _showroom_user_data.bastion_ssh_port | default(22) }}"
+          sshOtherHosts: "{{ instances | selectattr('name') | map(attribute='name') | list | default([]) }}"
+          terminals: "{{ instances | selectattr('terminals', 'defined') | community.general.json_query('[].{name: name, terminals: terminals}') }}"
+      novnc:
+        setup: "{{ (true if ocp4_workload_showroom_novnc_enable | bool else false) | bool | string | lower }}"
+        image: "{{ ocp4_workload_showroom_novnc_image }}"
+        vncServer: "{{ ocp4_workload_showroom_novnc_vnc_server_hostport }}"
+        password: "{{ ocp4_workload_showroom_novnc_vnc_server_password }}"
+        resources:
+          requests:
+            cpu: "{{ ocp4_workload_showroom_novnc_requests_cpu }}"
+            memory: "{{ ocp4_workload_showroom_novnc_requests_memory }}"
+          limits:
+            cpu: "{{ ocp4_workload_showroom_novnc_limits_cpu }}"
+            memory: "{{ ocp4_workload_showroom_novnc_limits_memory }}"
+      cloud:
+        setup: "{{ ('false' if auth_cloud_provider | default('none') == 'none' else 'true') | string | lower }}"
+        image: "{{ ocp4_workload_showroom_cloud_image }}"
+        auth_cloud_provider: "{{ auth_cloud_provider | default('none') }}"
+        aws_access_key_id: "{{ aws_sandbox_provision_data.aws_access_key_id | default('') }}"
+        aws_secret_access_key: "{{ aws_sandbox_provision_data.aws_secret_access_key | default('') }}"
+        aws_web_console_url: "{{ aws_sandbox_provision_data.aws_web_console_url | default('') }}"
+        aws_web_console_user_name: "{{ aws_sandbox_provision_data.aws_web_console_user_name | default('') }}"
+        aws_web_console_password: "{{ aws_sandbox_provision_data.aws_web_console_password | default('') }}"
+        aws_sandbox_account_id: "{{ aws_sandbox_provision_data.aws_sandbox_account_id | default('') }}"
+        aws_route53_domain: "{{ aws_sandbox_provision_data.aws_route53_domain | default('') }}"
+        aws_default_region: "{{ aws_sandbox_provision_data.aws_default_region | default('') }}"
+        azure_subscription: "{{ azure_sandbox_provision_data.azure_subscription | default('') }}"
+        azure_tenant: "{{ azure_sandbox_provision_data.azure_tenant_id | default('') }}"
+        azure_client_id: "{{ azure_sandbox_provision_data.azure_service_principal_id | default('') }}"
+        azure_password: "{{ azure_sandbox_provision_data.azure_service_principal_password | default('') }}"
+        azure_resourcegroup: "{{ azure_sandbox_provision_data.azure_resource_group | default('') }}"
+
+      ironrdp:
+        setup: "{{ ('true' if ocp4_workload_showroom_ironrdp_enable | bool else 'false') | string | lower }}"
+        image: "{{ ocp4_workload_showroom_ironrdp_image }}"
+        server: "windows"
+        user: "Administrator"
+        password: "{{ _showroom_user_data.windows_password | default('') }}"
+        jetserver: "localhost:7171"
+        tokengenserver: "localhost:8081"
+      runtime_automation:
+        setup: "{{ ('false' if ocp4_workload_showroom_automation_disable | bool else 'true') | string | lower }}"
+        environment_variables: "{{ showroom_runtime_automation_environment_variables }}"
+      setup_automation:
+        setup: "{{ ('false' if ocp4_workload_showroom_automation_disable | bool else 'true') | string | lower }}"
+        vault_password: "{{ _showroom_user_data.vault_password | default('') }}"
+        environment_variables: "{{ showroom_setup_automation_environment_variables }}"
+  register: r_helm_templates
+  retries: 5
+  delay: 30
+  until: r_helm_templates is not failed
+
+- name: Deploy rendered manifests to OpenShift
+  kubernetes.core.k8s:
+    kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    definition: "{{ r_helm_templates.stdout | from_yaml_all }}"
+  register: r_deploy_manifests
+  retries: 20
+  delay: 3
+  until: r_deploy_manifests is not failed
+
+- name: Wait for showroom pod to be created using label selector
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    api_version: v1
+    kind: Pod
+    namespace: "{{ _showroom_namespace }}"
+    label_selectors:
+      - app.kubernetes.io/name={{ ocp4_workload_showroom_name }}
+  register: r_showroom_pod
+  retries: 60
+  delay: 5
+  until: r_showroom_pod.resources | length > 0
+  ignore_errors: true
+
+- name: Set pod name fact from first matching pod
+  when: r_showroom_pod.resources | length > 0
+  ansible.builtin.set_fact:
+    _showroom_pod_name: "{{ r_showroom_pod.resources[0].metadata.name }}"
+
+- name: Check if showroom pod is running and ready
+  when: _showroom_pod_name is defined
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    api_version: v1
+    kind: Pod
+    namespace: "{{ _showroom_namespace }}"
+    name: "{{ _showroom_pod_name }}"
+  register: r_pod_status
+  retries: "{{ ocp4_workload_showroom_wait_retries | int }}"
+  delay: 5
+  until: >-
+    (r_pod_status.resources | length > 0) and
+    (
+      (
+        r_pod_status.resources[0].status.phase == 'Running' and
+        r_pod_status.resources[0].status.containerStatuses is defined and
+        r_pod_status.resources[0].status.containerStatuses | selectattr('ready', 'equalto', true) | list |
+          length == r_pod_status.resources[0].status.containerStatuses | length
+      )
+      or
+      (
+        (r_pod_status.resources[0].status.initContainerStatuses | default([])
+         + r_pod_status.resources[0].status.containerStatuses | default([]))
+        | selectattr('state.waiting', 'defined')
+        | selectattr('state.waiting.reason', 'in', ocp4_workload_showroom_fatal_container_reasons)
+        | map(attribute='restartCount', default=0) | map('int') | list
+        | select('ge', ocp4_workload_showroom_fatal_container_restart_threshold | int)
+        | list | length > 0
+      )
+    )
+  ignore_errors: true
+
+- name: Get logs from all containers using k8s_log module
+  when:
+    - _showroom_pod_name is defined
+    - >-
+      r_pod_status.resources | length == 0 or
+      r_pod_status.resources[0].status.phase != 'Running' or
+      r_pod_status.resources[0].status.containerStatuses is not defined or
+      (r_pod_status.resources[0].status.containerStatuses | selectattr('ready', 'equalto', true) | list |
+      length != r_pod_status.resources[0].status.containerStatuses | length)
+  kubernetes.core.k8s_log:
+    kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    namespace: "{{ _showroom_namespace }}"
+    name: "{{ _showroom_pod_name }}"
+    all_containers: true
+    tail_lines: 200
+  register: r_pod_logs
+  changed_when: false
+  failed_when: false
+  ignore_errors: true
+
+- name: Get logs from init containers
+  when:
+    - _showroom_pod_name is defined
+    - r_pod_status.resources | length > 0
+    - r_pod_status.resources[0].status.initContainerStatuses is defined
+    - r_pod_status.resources[0].status.initContainerStatuses | length > 0
+  kubernetes.core.k8s_log:
+    kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    namespace: "{{ _showroom_namespace }}"
+    name: "{{ _showroom_pod_name }}"
+    container: "{{ item.name }}"
+    tail_lines: 200
+  register: r_init_container_logs
+  changed_when: false
+  failed_when: false
+  ignore_errors: true
+  loop: "{{ r_pod_status.resources[0].status.initContainerStatuses }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Get full pod information for describe output
+  when:
+    - _showroom_pod_name is defined
+    - >-
+      r_pod_status.resources | length == 0 or
+      r_pod_status.resources[0].status.phase != 'Running' or
+      r_pod_status.resources[0].status.containerStatuses is not defined or
+      (r_pod_status.resources[0].status.containerStatuses | selectattr('ready', 'equalto', true) | list |
+      length != r_pod_status.resources[0].status.containerStatuses | length)
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    api_version: v1
+    kind: Pod
+    namespace: "{{ _showroom_namespace }}"
+    name: "{{ _showroom_pod_name }}"
+  register: r_pod_full_info
+  changed_when: false
+  failed_when: false
+  ignore_errors: true
+
+- name: Report pod failure with describe and logs
+  when:
+    - _showroom_pod_name is defined
+    - >-
+      r_pod_status.resources | length == 0 or
+      r_pod_status.resources[0].status.phase != 'Running' or
+      r_pod_status.resources[0].status.containerStatuses is not defined or
+      (r_pod_status.resources[0].status.containerStatuses | selectattr('ready', 'equalto', true) | list |
+      length != r_pod_status.resources[0].status.containerStatuses | length)
+  ansible.builtin.fail:
+    msg: |
+      ========================================================================
+      Showroom pod '{{ _showroom_pod_name }}' failed to start successfully
+      ========================================================================
+
+      POD STATUS SUMMARY:
+      ========================================================================
+
+      - Phase: {{ r_pod_status.resources[0].status.phase if r_pod_status.resources | length > 0 else 'Unknown' }}
+      - Namespace: {{ _showroom_namespace }}
+      {% if r_pod_status.resources | length > 0 and r_pod_status.resources[0].status.conditions is defined %}
+      - Conditions:
+      {% for condition in r_pod_status.resources[0].status.conditions %}
+        - {{ condition.type }}: {{ condition.status }} - {{ condition.message | default('N/A') }}
+      {% endfor %}
+      {% endif %}
+
+      CONTAINER STATUSES:
+      ========================================================================
+
+      {% if r_pod_status.resources | length > 0 and r_pod_status.resources[0].status.initContainerStatuses is defined %}
+      Init Containers:
+      {% for container in r_pod_status.resources[0].status.initContainerStatuses %}
+      - {{ container.name }}:
+        Ready: {{ container.ready | default(false) }}
+        Restarts: {{ container.restartCount | default(0) }}
+        State: {{ container.state.keys() | list | first | default('unknown') }}
+        {% if container.state.waiting is defined %}
+        Waiting Reason: {{ container.state.waiting.reason | default('N/A') }}
+        Waiting Message: {{ container.state.waiting.message | default('N/A') }}
+        {% endif %}
+        {% if container.state.terminated is defined %}
+        Terminated Reason: {{ container.state.terminated.reason | default('N/A') }}
+        Terminated Message: {{ container.state.terminated.message | default('N/A') }}
+        Exit Code: {{ container.state.terminated.exitCode | default('N/A') }}
+        {% endif %}
+      {% endfor %}
+      {% endif %}
+      {% if r_pod_status.resources | length > 0 and r_pod_status.resources[0].status.containerStatuses is defined %}
+      Main Containers:
+      {% for container in r_pod_status.resources[0].status.containerStatuses %}
+      - {{ container.name }}:
+        Ready: {{ container.ready | default(false) }}
+        Restarts: {{ container.restartCount | default(0) }}
+        State: {{ container.state.keys() | list | first | default('unknown') }}
+        {% if container.state.waiting is defined %}
+        Waiting Reason: {{ container.state.waiting.reason | default('N/A') }}
+        Waiting Message: {{ container.state.waiting.message | default('N/A') }}
+        {% endif %}
+        {% if container.state.terminated is defined %}
+        Terminated Reason: {{ container.state.terminated.reason | default('N/A') }}
+        Terminated Message: {{ container.state.terminated.message | default('N/A') }}
+        Exit Code: {{ container.state.terminated.exitCode | default('N/A') }}
+        {% endif %}
+      {% endfor %}
+      {% else %}
+      - No container status information available
+      {% endif %}
+
+      FULL POD INFORMATION (YAML):
+      ========================================================================
+
+      {{ r_pod_full_info.resources[0] | to_nice_yaml
+         if (r_pod_full_info is defined and r_pod_full_info.resources | length > 0)
+         else (r_pod_status.resources[0] | to_nice_yaml
+         if r_pod_status.resources | length > 0
+         else 'Pod information not available') }}
+
+      CONTAINER LOGS:
+      ========================================================================
+
+      {% if r_init_container_logs is defined and r_init_container_logs.results is defined %}
+      {% for result in r_init_container_logs.results %}
+      {% if result.log is defined and result.log != '' %}
+
+      === Init Container: {{ result.item.name }} ===
+      ------------------------------------------------------------------------
+
+      {{ result.log }}
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+      {% if r_pod_logs is defined and r_pod_logs.log is defined and r_pod_logs.log != '' %}
+
+      === Main Container Logs ===
+      ------------------------------------------------------------------------
+
+      {{ r_pod_logs.log }}
+
+      {% endif %}
+      {% if (r_pod_logs is not defined or r_pod_logs.log is not defined or r_pod_logs.log == '') and
+            (r_init_container_logs is not defined or r_init_container_logs.results is not defined or
+             r_init_container_logs.results | selectattr('log', 'defined') | selectattr('log', 'ne', '') | list | length == 0) %}
+      Logs not available. k8s_log module may have failed. Error: {{ r_pod_logs.msg | default('Unknown error')
+                                                                    if r_pod_logs is defined else 'k8s_log task did not run' }}
+      {% endif %}
+
+      ========================================================================

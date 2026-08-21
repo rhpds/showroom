@@ -1,0 +1,18 @@
+---
+galaxy_info:
+  author: Red Hat
+  description: Deploy "zero-touch" flavored Showroom lab environments to OpenShift
+  company: Red Hat
+  license: Apache-2.0
+  min_ansible_version: "2.14"
+  galaxy_tags:
+    - showroom
+    - openshift
+    - zerotouch
+
+dependencies: []
+
+collections:
+  - kubernetes.core
+  - community.general
+  - agnosticd.core
