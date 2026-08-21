@@ -7,6 +7,7 @@
   ansible.builtin.include_tasks: setup-namespace.yaml
 
 - name: Render helm chart with values
+  no_log: true
   kubernetes.core.helm_template:
     chart_repo_url: "{{ ocp4_workload_showroom_chart_package_url }}"
     chart_ref: "{{ ocp4_workload_showroom_deployer_chart_name }}"
@@ -142,6 +143,7 @@
   register: r_helm_templates
 
 - name: Deploy rendered manifests to OpenShift
+  no_log: true
   kubernetes.core.k8s:
     kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
     host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"

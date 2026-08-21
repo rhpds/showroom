@@ -21,7 +21,8 @@
   - name: Write content to kubeconfig
     ansible.builtin.copy:
       dest: "{{ _showroom_kubeconfig }}"
-      mode: "u=rw,g=rw,o=rw"
+      mode: "0600"
+      no_log: true
       content: |
         apiVersion: v1
         kind: Config
