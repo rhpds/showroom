@@ -41,7 +41,7 @@ When `ACTION` is `destroy` or `remove`, the role removes the ArgoCD `Application
 
 - `tasks/main.yml` (do not modify) always runs `pre_workload.yml`, then dispatches to `workload.yml` + `post_workload.yml` (provision) or `remove_workload.yml` (destroy) based on `ACTION`.
 - `tasks/pre_workload.yml`: if `showroom_openshift_api_url`, `showroom_openshift_api_token`, and `showroom_openshift_api_ca_cert` are all defined, writes a temporary kubeconfig file and sets `_showroom_kubeconfig` to its path. See <<auth>> — note these variable names do **not** have the `ocp4_workload_` prefix.
-- `tasks/prepare-variables.yaml`:
+- `tasks/prepare_variables.yaml`:
 * Asserts `guid` and `ocp4_workload_showroom_content_git_repo` are set.
 * Optionally copies `agnosticd_passthrough_user_data` into each `userN` entry in `user_data` when `ocp4_workload_showroom_passthrough_user_data` is `true` (neither variable has a default; both are opt-in).
 * Loads global + per-user `user_data` into `_showroom_user_data` via `lookup('agnosticd.core.agnosticd_user_data', '*')`.
@@ -50,13 +50,13 @@ When `ACTION` is `destroy` or `remove`, the role removes the ArgoCD `Application
 - `tasks/workload.yml`:
 * Branches on `ocp4_workload_showroom_deployment_type` (`helm` or `argocd`).
 * For each branch, detects single-user vs. multi-user from `_showroom_user_data.users` and loops accordingly, setting `_showroom_namespace` and `_showroom_vars` (user data merged with `showroom_vars` overrides) per iteration.
-* `helm` deploys via `deploy-showroom-helm.yaml`; `argocd` installs the templated `application.yaml.j2` (single user) or `applicationset.yaml.j2` (multi-user).
-* Always finishes by including `report-variables.yaml` once per namespace.
-- `tasks/setup-namespace.yaml`: checks if the `Project` already exists; if not, tries a labeled (`guid`, `creator`) plain `Namespace` first, falling back to `ProjectRequest` (retrying and tolerating `AlreadyExists`, working around https://github.com/ansible-collections/kubernetes.core/issues/623[a kubernetes.core bug]) only if the `Namespace` attempt fails — matching the sibling `ocp4_workload_showroom` role's approach. This existence check is what allows this role to run safely on clusters/namespaces it doesn't exclusively own (e.g. CNV sandboxes). A genuine failure from both attempts (e.g. RBAC, quota) now fails the play instead of being silently swallowed. Optionally runs a self-provisioner smoke test (create + delete a test `ConfigMap`) when `ocp4_workload_showroom_test_self_provisioner` is `true`.
-- `tasks/deploy-showroom-helm.yaml`: renders the Helm chart (see <<chart_selection>>) with the full zerotouch value set — content, terminal, wetty, novnc, cloud, ironrdp, stacked_terminals, second_terminal_tab, setup_automation, runtime_automation, satellite, route, and antora UI bundle — applies the rendered manifests, then waits up to `ocp4_workload_showroom_wait_retries` for the pod to become ready. If a container is stuck `waiting` in one of `ocp4_workload_showroom_fatal_container_reasons` (default: `CrashLoopBackOff`) for `ocp4_workload_showroom_fatal_container_restart_threshold` (default: `3`) or more restarts, it fails fast instead of waiting out the full retry budget. `terminal.terminals` and `wetty.sshOtherHosts`/`wetty.terminals` are built from the AgnosticD `instances`/`containers` inventory facts (any host/container with a `consoles` or `terminals` key becomes an extra terminal sub-tab).
-- `tasks/check-and-install-helm.yaml`: installs `helm` from `{{ ocp4_workload_showroom_tools_root_url }}/helm/{{ ocp4_workload_showroom_helm_version }}/helm-linux-amd64.tar.gz` (OpenShift's own client mirror) if it's not already present at `/usr/local/bin/helm` or `/usr/bin/helm`.
-- `tasks/report-variables.yaml`: waits for the `Route` named `ocp4_workload_showroom_service_name`, then writes `lab_ui_url` and `showroom_primary_view_url` (both set to the same URL) to `user_info`.
-- `tasks/prepare_variables_destroy.yaml`: a leaner, defensive variant of `prepare-variables.yaml` used only by `remove_workload.yml`. Resolves `_showroom_user_data`/`_user_count` with `failed_when: false` (warning if the lookup returns nothing) — skips the `guid`/content-repo assertion and the Ingress-domain lookup, neither of which destroy needs.
+* `helm` deploys via `deploy_showroom_helm.yaml`; `argocd` installs the templated `application.yaml.j2` (single user) or `applicationset.yaml.j2` (multi-user).
+* Always finishes by including `report_variables.yaml` once per namespace.
+- `tasks/setup_namespace.yaml`: checks if the `Project` already exists; if not, tries a labeled (`guid`, `creator`) plain `Namespace` first, falling back to `ProjectRequest` (retrying and tolerating `AlreadyExists`, working around https://github.com/ansible-collections/kubernetes.core/issues/623[a kubernetes.core bug]) only if the `Namespace` attempt fails — matching the sibling `ocp4_workload_showroom` role's approach. This existence check is what allows this role to run safely on clusters/namespaces it doesn't exclusively own (e.g. CNV sandboxes). A genuine failure from both attempts (e.g. RBAC, quota) now fails the play instead of being silently swallowed. Optionally runs a self-provisioner smoke test (create + delete a test `ConfigMap`) when `ocp4_workload_showroom_test_self_provisioner` is `true`.
+- `tasks/deploy_showroom_helm.yaml`: renders the Helm chart (see <<chart_selection>>) with the full zerotouch value set — content, terminal, wetty, novnc, cloud, ironrdp, stacked_terminals, second_terminal_tab, setup_automation, runtime_automation, satellite, route, and antora UI bundle — applies the rendered manifests, then waits up to `ocp4_workload_showroom_wait_retries` for the pod to become ready. If a container is stuck `waiting` in one of `ocp4_workload_showroom_fatal_container_reasons` (default: `CrashLoopBackOff`) for `ocp4_workload_showroom_fatal_container_restart_threshold` (default: `3`) or more restarts, it fails fast instead of waiting out the full retry budget. `terminal.terminals` and `wetty.sshOtherHosts`/`wetty.terminals` are built from the AgnosticD `instances`/`containers` inventory facts (any host/container with a `consoles` or `terminals` key becomes an extra terminal sub-tab).
+- `tasks/check_and_install_helm.yaml`: installs `helm` from `{{ ocp4_workload_showroom_tools_root_url }}/helm/{{ ocp4_workload_showroom_helm_version }}/helm-linux-amd64.tar.gz` (OpenShift's own client mirror) if it's not already present at `/usr/local/bin/helm` or `/usr/bin/helm`.
+- `tasks/report_variables.yaml`: waits for the `Route` named `ocp4_workload_showroom_service_name`, then writes `lab_ui_url` and `showroom_primary_view_url` (both set to the same URL) to `user_info`.
+- `tasks/prepare_variables_destroy.yaml`: a leaner, defensive variant of `prepare_variables.yaml` used only by `remove_workload.yml`. Resolves `_showroom_user_data`/`_user_count` with `failed_when: false` (warning if the lookup returns nothing) — skips the `guid`/content-repo assertion and the Ingress-domain lookup, neither of which destroy needs.
 - `tasks/remove_workload.yml`: if `ocp4_workload_showroom_deployment_type` was `argocd`, removes the matching `Application`/`ApplicationSet`. Always attempts to delete the `Project` for each namespace, with `failed_when: false` — on CNV sandboxes the namespace is the shared sandbox project the automation SA doesn't own, so this delete is expected to fail harmlessly (actual teardown happens at the infra/cloud-provider level). After each delete attempt, waits (up to 5 minutes, `failed_when: false`) for the `Project` to actually disappear, to avoid racing a fast guid-reuse re-provision against a still-`Terminating` namespace.
 
 [#auth]
@@ -401,7 +401,7 @@ The setup automation container's vault password is read from `_showroom_user_dat
 |`ocp4_workload_showroom_wait_retries`
 |integer
 |`300`
-|Retries (5s delay each) waiting for the Showroom pod to become fully ready before failing, in `deploy-showroom-helm.yaml`.
+|Retries (5s delay each) waiting for the Showroom pod to become fully ready before failing, in `deploy_showroom_helm.yaml`.
 
 |`ocp4_workload_showroom_fatal_container_reasons`
 |list
@@ -458,7 +458,7 @@ These have no entry in `defaults/main.yaml` — they're opt-in and safe to leave
 
 == Multi-User
 
-Multi-user mode is automatic: if `_showroom_user_data` (loaded from `user_data`) has a `users` map, the role loops once per user in `workload.yml`, `report-variables.yaml`, and `remove_workload.yml`, deploying one namespace/pod/route per user (`ocp4_workload_showroom_namespace-<user>`). Each user's `content.user_data` is that user's entry from `users` merged with `showroom_vars` and helper keys (`guid`, `user`).
+Multi-user mode is automatic: if `_showroom_user_data` (loaded from `user_data`) has a `users` map, the role loops once per user in `workload.yml`, `report_variables.yaml`, and `remove_workload.yml`, deploying one namespace/pod/route per user (`ocp4_workload_showroom_namespace-<user>`). Each user's `content.user_data` is that user's entry from `users` merged with `showroom_vars` and helper keys (`guid`, `user`).
 
 == Examples
 

@@ -16,7 +16,7 @@
 # otherwise use default
 
 - name: Prepare Variables
-  ansible.builtin.include_tasks: prepare-variables.yaml
+  ansible.builtin.include_tasks: prepare_variables.yaml
 
 - name: Deploy via ArgoCD
   when: ocp4_workload_showroom_deployment_type == "argocd"
@@ -79,7 +79,7 @@
   when: ocp4_workload_showroom_deployment_type == "helm"
   block:
   - name: Check if Helm needs to be installed
-    ansible.builtin.include_tasks: check-and-install-helm.yaml
+    ansible.builtin.include_tasks: check_and_install_helm.yaml
 
   - name: Deploy showroom via Helm (single user)
     when: not _showroom_user_data.users is defined
@@ -87,7 +87,7 @@
       _showroom_namespace: "{{ ocp4_workload_showroom_namespace }}"
       _showroom_vars: "{{ _showroom_user_data | combine(showroom_vars) | combine({'guid': guid}) }}"
     ansible.builtin.include_tasks:
-      file: deploy-showroom-helm.yaml
+      file: deploy_showroom_helm.yaml
 
   - name: Deploy showroom via Helm (multi user)
     when: _showroom_user_data.users is defined
@@ -96,7 +96,7 @@
       _showroom_namespace: "{{ ocp4_workload_showroom_namespace }}-{{ _showroom_user }}"
       _showroom_vars: "{{ _showroom_users_item.value | combine(showroom_vars) | combine({'guid': guid, 'user': _showroom_user}) }}"
     ansible.builtin.include_tasks:
-      file: deploy-showroom-helm.yaml
+      file: deploy_showroom_helm.yaml
     loop: "{{ _showroom_user_data.users | dict2items }}"
     loop_control:
       loop_var: _showroom_users_item
@@ -108,7 +108,7 @@
     _showroom_vars: "{{ _showroom_user_data | combine(showroom_vars) | combine({'guid': guid}) }}"
     _showroom_namespace: "{{ ocp4_workload_showroom_namespace }}"
   ansible.builtin.include_tasks:
-    file: report-variables.yaml
+    file: report_variables.yaml
 
 - name: Report Variables to user_data (multi user)
   when: _showroom_user_data.users is defined
@@ -117,7 +117,7 @@
     _showroom_namespace: "{{ ocp4_workload_showroom_namespace }}-{{ _showroom_user }}"
     _showroom_vars: "{{ _showroom_users_item.value | combine(showroom_vars) | combine({'guid': guid, 'user': _showroom_user}) }}"
   ansible.builtin.include_tasks:
-    file: report-variables.yaml
+    file: report_variables.yaml
   loop: "{{ _showroom_user_data.users | dict2items }}"
   loop_control:
     loop_var: _showroom_users_item

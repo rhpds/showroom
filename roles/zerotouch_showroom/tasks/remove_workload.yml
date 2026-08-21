@@ -47,7 +47,7 @@
 # hosting the VMs), not one this role self-provisioned - the sandbox SA
 # lacks cluster-scoped permission to delete a Project it didn't create
 # (same RBAC restriction that gates namespace creation in
-# setup-namespace.yaml), so this fails harmlessly via ignore_errors
+# setup_namespace.yaml), so this fails harmlessly via ignore_errors
 # instead of deleting shared resources. Actual teardown of the sandbox
 # namespace happens at the infra/cloud-provider level, not here.
 - name: Remove Projects (single user)
