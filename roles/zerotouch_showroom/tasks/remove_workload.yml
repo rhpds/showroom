@@ -9,7 +9,7 @@
 # --------------------------------------------
 
 - name: Prepare Variables
-  ansible.builtin.include_tasks: prepare-variables.yaml
+  ansible.builtin.include_tasks: prepare_variables_destroy.yaml
 
 - name: Remove via Argo when present
   when: ocp4_workload_showroom_deployment_type == "argocd"
@@ -65,6 +65,22 @@
         name: "{{ ocp4_workload_showroom_namespace }}"
   failed_when: false
 
+- name: Wait for showroom project to be fully removed (single user)
+  when: not _showroom_user_data.users is defined
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    api_version: project.openshift.io/v1
+    kind: Project
+    name: "{{ ocp4_workload_showroom_namespace }}"
+  register: r_wait_project_single
+  retries: 30
+  delay: 10
+  until: r_wait_project_single.resources | default([]) | length == 0
+  failed_when: false
+
 - name: Remove Projects (multi user)
   when: _showroom_user_data.users is defined
   vars:
@@ -81,6 +97,30 @@
       kind: Project
       metadata:
         name: "{{ _showroom_namespace }}"
+  failed_when: false
+  loop: >-
+    {{ _showroom_user_data.users | dict2items }}
+  loop_control:
+    loop_var: _showroom_users_item
+    label: "{{ _showroom_users_item.key }}"
+
+- name: Wait for showroom projects to be fully removed (multi user)
+  when: _showroom_user_data.users is defined
+  vars:
+    _showroom_user: "{{ _showroom_users_item.key }}"
+    _showroom_namespace: "{{ ocp4_workload_showroom_namespace }}-{{ _showroom_user }}"
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ _showroom_kubeconfig | default(omit) }}"
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    api_version: project.openshift.io/v1
+    kind: Project
+    name: "{{ _showroom_namespace }}"
+  register: r_wait_project_multi
+  retries: 30
+  delay: 10
+  until: r_wait_project_multi.resources | default([]) | length == 0
   failed_when: false
   loop: >-
     {{ _showroom_user_data.users | dict2items }}
