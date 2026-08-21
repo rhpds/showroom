@@ -431,18 +431,6 @@ The setup automation container's vault password is read from `_showroom_user_dat
 |When `true`, omits `spec.host` on the Route so OpenShift generates it (zerotouch chart only).
 |===
 
-=== Debugging
-
-[cols="1,1,1,3",options="header"]
-|===
-|Variable |Type |Default |Description
-
-|`ocp4_workload_showroom_debug_unsafe_logging`
-|boolean
-|`false`
-|When `true`, disables `no_log` on the tasks that render/apply the Helm chart values and write the remote kubeconfig, so their full output — including vault/cloud/SSH passwords and API tokens — shows up in Ansible output. Defaults to `false` (secrets hidden). Only set this in a throwaway dev environment when you need to see what's actually being rendered/applied; never in CI or production.
-|===
-
 === Advanced / Optional (no default)
 
 These have no entry in `defaults/main.yaml` — they're opt-in and safe to leave unset:
