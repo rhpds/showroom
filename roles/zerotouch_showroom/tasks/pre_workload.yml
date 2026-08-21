@@ -22,7 +22,7 @@
     ansible.builtin.copy:
       dest: "{{ _showroom_kubeconfig }}"
       mode: "0600"
-      no_log: true
+      no_log: "{{ not (ocp4_workload_showroom_debug_unsafe_logging | default(false) | bool) }}"
       content: |
         apiVersion: v1
         kind: Config

@@ -179,3 +179,10 @@ showroom_vars: {}
 showroom_automation_environment_variables: {}
 showroom_runtime_automation_environment_variables: "{{ showroom_automation_environment_variables }}"
 showroom_setup_automation_environment_variables: "{{ showroom_automation_environment_variables }}"
+
+# When true, disables no_log on the tasks that render/apply the Helm chart
+# values and write the remote kubeconfig, so their full output (including
+# vault/cloud/SSH passwords and API tokens) shows up in Ansible output for
+# local debugging. Defaults to false (secrets hidden) - only set this to
+# true in a throwaway dev environment, never in CI or production.
+ocp4_workload_showroom_debug_unsafe_logging: false
