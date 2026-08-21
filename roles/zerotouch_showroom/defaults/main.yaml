@@ -1,10 +1,6 @@
 ---
 become_override: false
-ocp_username: user-redhat.com
 silent: false
-
-tmp_dir: /tmp/{{ guid }}
-tmp_kubeconfig: "{{ tmp_dir }}/.kube/config"
 
 # Connection to cluster to deploy to. Matches the ocp4_workload_showroom
 # role's convention (agnosticd.showroom collection) so callers already
@@ -16,7 +12,6 @@ tmp_kubeconfig: "{{ tmp_dir }}/.kube/config"
 
 ocp4_workload_showroom_name: "showroom"
 ocp4_workload_showroom_namespace: "showroom-{{ guid | default('00000') }}"
-ocp4_workload_showroom_namespace_display: Showroom Guide
 
 # Content repository to be rendered as lab instructions
 ocp4_workload_showroom_content_git_repo: https://github.com/rhpds/showroom_template_default.git

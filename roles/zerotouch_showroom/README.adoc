@@ -543,7 +543,7 @@ Remember the ArgoCD templates render a reduced value set — see the note under 
 [#gotchas]
 == Known Gotchas
 
-* `ocp4_workload_showroom_namespace_display`, `ocp4_workload_showroom_helm_version`, `ocp4_workload_showroom_tools_root_url`, `tmp_dir`, `tmp_kubeconfig`, and `ocp_username` are all declared in `defaults/main.yaml` but are not referenced anywhere under `tasks/` — they're leftovers from the v1 role and currently have no effect. In particular, `check-and-install-helm.yaml` downloads Helm from a hardcoded S3 URL regardless of `ocp4_workload_showroom_tools_root_url`/`_helm_version`.
+* `ocp4_workload_showroom_helm_version`/`_tools_root_url` are declared in `defaults/main.yaml` but not yet referenced anywhere under `tasks/` — `check-and-install-helm.yaml` downloads Helm from a hardcoded S3 URL regardless of their value. (The other vestigial v1 vars this role once carried — `ocp4_workload_showroom_namespace_display`, `tmp_dir`, `tmp_kubeconfig`, `ocp_username` — have since been removed.)
 * The `argocd` deployment type renders fewer chart values than `helm` — see the note under <<deployment_types>>.
 * The default chart name/version (`zerotouch` chart, `1.10.2`) and several other defaults (terminal type, wetty auto-SSH, zero-touch bundle/UI, Antora UI bundle, cloud image, `use_sandbox_domain`) are pinned to match real ZT RHEL BU production usage — see <<chart_note>> and the per-section tables above for what changed from the plain upstream/v1 defaults.
 * `ocp4_workload_showroom_openshift_api_url`/`_token` and `showroom_openshift_api_url`/`_token`/`_ca_cert` are similarly named but distinct mechanisms — see <<auth>>.
