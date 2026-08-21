@@ -29,16 +29,6 @@
   ansible.builtin.set_fact:
     _user_count: "{{ _showroom_user_data['users'] | length }}"
 
-- name: Read user-info.yaml
-  delegate_to: localhost
-  ansible.builtin.slurp:
-    src: "{{ hostvars.localhost.output_dir ~ '/user-info.yaml' }}"
-  register: r_user_info
-
-- name: Set fact for user info
-  ansible.builtin.set_fact:
-    _showroom_user_info: '{{ r_user_info.content | b64decode | from_yaml | default([], true) | join("\n") }}'
-
 # this is for single user, also need to add for multi-user
 # should I put this also in the multi-user deployment loops?  TODO
 - name: Debug user data to services
