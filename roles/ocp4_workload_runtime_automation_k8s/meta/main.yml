@@ -6,7 +6,7 @@ galaxy_info:
     namespace for runtime-automation playbooks, with optional cluster-admin
     or per-student-namespace admin RBAC.
   company: Red Hat
-  license: GPL-3.0-or-later
+  license: Apache-2.0
   min_ansible_version: "2.14"
   galaxy_tags:
     - openshift
@@ -15,3 +15,6 @@ galaxy_info:
     - automation
 
 dependencies: []
+
+collections:
+  - kubernetes.core

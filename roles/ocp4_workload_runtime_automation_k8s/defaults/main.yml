@@ -12,7 +12,7 @@ ocp4_workload_runtime_automation_k8s_secret_name: qa-automation-kubeconfig
 
 # Showroom namespace — mirrors the ocp4_workload_showroom default
 ocp4_workload_runtime_automation_k8s_showroom_namespace: >-
-  {{ ocp4_workload_showroom_namespace | default('showroom-' + guid) }}
+  {{ ocp4_workload_showroom_namespace | default('showroom-' + (guid | default('00000'))) }}
 
 # Student username — used with namespace suffixes in tenant mode
 ocp4_workload_runtime_automation_k8s_username: >-
@@ -28,9 +28,29 @@ ocp4_workload_runtime_automation_k8s_namespace_suffixes: >-
 # in-cluster / kubeconfig auth).
 ocp4_workload_runtime_automation_k8s_openshift_api_url: >-
   {{ ocp4_workload_showroom_openshift_api_url | default(openshift_api_url | default('')) }}
+
+# Generic AgnosticD fallback is named `openshift_api_key` (not `..._token`)
+# by existing repo-wide convention — this role calls its own var a "token"
+# because that's what it actually holds (a bearer token), not an API key.
 ocp4_workload_runtime_automation_k8s_openshift_api_token: >-
   {{ ocp4_workload_showroom_openshift_api_token | default(openshift_api_key | default('')) }}
 
 # false (default): tenant lab — RoleBinding "admin" in each student namespace
 # true: dedicated cluster — ClusterRoleBinding "cluster-admin"
 ocp4_workload_runtime_automation_k8s_cluster_admin: false
+
+# ClusterRole granted via RoleBinding in each student namespace (tenant mode)
+ocp4_workload_runtime_automation_k8s_namespace_role: admin
+
+# ClusterRole granted via ClusterRoleBinding (dedicated mode)
+ocp4_workload_runtime_automation_k8s_cluster_role: cluster-admin
+
+# Retries/delay (seconds) while waiting for Kubernetes to populate the
+# long-lived token Secret's `data.token` / `data['ca.crt']` keys.
+ocp4_workload_runtime_automation_k8s_token_wait_retries: 12
+ocp4_workload_runtime_automation_k8s_token_wait_delay: 5
+
+# Retries/delay (seconds) applied to every other mutating Kubernetes API
+# call in this role, to ride out transient API-server errors.
+ocp4_workload_runtime_automation_k8s_retries: 5
+ocp4_workload_runtime_automation_k8s_retry_delay: 5

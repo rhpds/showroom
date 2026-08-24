@@ -1,8 +1,30 @@
 ---
-# The qa-automation ServiceAccount and both Secrets are namespace-scoped and are
-# deleted automatically when ocp4_workload_showroom removes the showroom
-# namespace. Only the ClusterRoleBinding (dedicated mode) is cluster-scoped
-# and needs explicit cleanup here.
+# Deletes the RBAC grants created by workload.yml for the qa-automation
+# ServiceAccount. The ServiceAccount and both Secrets are namespace-scoped
+# and are deleted automatically when ocp4_workload_showroom removes the
+# showroom namespace. The RoleBindings (tenant mode) and ClusterRoleBinding
+# (dedicated mode) are explicitly deleted here since they live in namespaces
+# — or at cluster scope — that this role does not own.
+
+- name: Build student namespace list
+  ansible.builtin.include_tasks: build_namespace_list.yml
+
+- name: Delete admin RoleBinding from each student namespace (tenant mode only)
+  when: not (ocp4_workload_runtime_automation_k8s_cluster_admin | bool)
+  kubernetes.core.k8s:
+    host: "{{ ocp4_workload_runtime_automation_k8s_openshift_api_url | default(omit, true) }}"
+    api_key: "{{ ocp4_workload_runtime_automation_k8s_openshift_api_token | default(omit, true) }}"
+    validate_certs: false
+    state: absent
+    api_version: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    name: "{{ ocp4_workload_runtime_automation_k8s_sa_name }}-{{ guid }}"
+    namespace: "{{ item }}"
+  loop: "{{ _rak8s_namespaces }}"
+  register: r_rak8s_rolebinding_delete
+  until: r_rak8s_rolebinding_delete is succeeded
+  retries: "{{ ocp4_workload_runtime_automation_k8s_retries }}"
+  delay: "{{ ocp4_workload_runtime_automation_k8s_retry_delay }}"
 
 - name: Delete cluster-admin ClusterRoleBinding (dedicated mode only)
   when: ocp4_workload_runtime_automation_k8s_cluster_admin | bool
@@ -13,4 +35,13 @@
     state: absent
     api_version: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
-    name: "qa-automation-{{ guid }}"
+    name: "{{ ocp4_workload_runtime_automation_k8s_sa_name }}-{{ guid }}"
+  register: r_rak8s_clusterrolebinding_delete
+  until: r_rak8s_clusterrolebinding_delete is succeeded
+  retries: "{{ ocp4_workload_runtime_automation_k8s_retries }}"
+  delay: "{{ ocp4_workload_runtime_automation_k8s_retry_delay }}"
+
+- name: Workload removal tasks complete
+  when: not (silent | default(false) | bool)
+  ansible.builtin.debug:
+    msg: "ocp4_workload_runtime_automation_k8s removal tasks completed successfully."

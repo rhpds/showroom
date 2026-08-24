@@ -1,0 +1,16 @@
+---
+# Builds _rak8s_namespaces: the list of student namespace names
+# ("{{ username }}-{{ suffix }}") used in tenant mode. Shared by
+# workload.yml and remove_workload.yml so provisioning and teardown always
+# compute the exact same namespace list.
+
+- name: Initialize student namespace list
+  ansible.builtin.set_fact:
+    _rak8s_namespaces: []
+
+- name: Build student namespace list
+  ansible.builtin.set_fact:
+    _rak8s_namespaces: "{{ _rak8s_namespaces + [ocp4_workload_runtime_automation_k8s_username + '-' + item.suffix] }}"
+  loop: "{{ ocp4_workload_runtime_automation_k8s_namespace_suffixes }}"
+  loop_control:
+    label: "{{ item.suffix }}"

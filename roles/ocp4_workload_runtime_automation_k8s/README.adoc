@@ -21,13 +21,21 @@ NOTE: This role does not change `serviceAccountName` on the Showroom pod, and th
 
 When `ACTION=provision`, the role (`tasks/workload.yml`):
 
-1. Builds the student namespace list from `ocp4_workload_runtime_automation_k8s_namespace_suffixes` and `_username` (tenant mode only).
-2. Creates ServiceAccount `qa-automation` in the Showroom namespace.
-3. Creates a `kubernetes.io/service-account-token` Secret for that SA and waits until Kubernetes populates both `data.token` and `data['ca.crt']`.
-4. Grants RBAC — `admin` RoleBinding per student namespace, or a `cluster-admin` ClusterRoleBinding when `ocp4_workload_runtime_automation_k8s_cluster_admin: true`.
-5. Renders a kubeconfig (embedding the token and CA certificate — no `insecure-skip-tls-verify`) and stores it in Secret `qa-automation-kubeconfig`.
+1. Builds the student namespace list from `ocp4_workload_runtime_automation_k8s_namespace_suffixes` and `_username` (tenant mode only), via the shared `tasks/build_namespace_list.yml`.
+2. In tenant mode, fails fast if that list is empty — a `qa-automation` SA with no RBAC anywhere would otherwise be silently created and only fail later, confusingly, inside `zerotouch-automation`.
+3. Creates ServiceAccount `qa-automation` in the Showroom namespace.
+4. Creates a `kubernetes.io/service-account-token` Secret for that SA and waits until Kubernetes populates both `data.token` and `data['ca.crt']`.
+5. Grants RBAC — `admin` RoleBinding per student namespace, or a `cluster-admin` ClusterRoleBinding when `ocp4_workload_runtime_automation_k8s_cluster_admin: true`.
+6. Renders a kubeconfig (embedding the token and CA certificate — no `insecure-skip-tls-verify`) and stores it in Secret `qa-automation-kubeconfig`.
 
-When `ACTION=destroy`, the role (`tasks/remove_workload.yml`) deletes only the `cluster-admin` ClusterRoleBinding (dedicated mode). The ServiceAccount and both Secrets are namespace-scoped and are garbage-collected when `ocp4_workload_showroom` deletes the Showroom namespace; RoleBindings in student namespaces are likewise namespace-scoped and are expected to be cleaned up with those namespaces.
+Every mutating Kubernetes API call in this role retries on transient failures (see `ocp4_workload_runtime_automation_k8s_retries` / `_retry_delay` below).
+
+When `ACTION=destroy`, the role (`tasks/remove_workload.yml`) deletes:
+
+* The `admin` RoleBinding from each student namespace (tenant mode) — computed from the same shared namespace-list logic used at provision time, so teardown always targets the exact bindings that were created.
+* The `cluster-admin` ClusterRoleBinding (dedicated mode).
+
+The ServiceAccount and both Secrets are namespace-scoped and are garbage-collected when `ocp4_workload_showroom` deletes the Showroom namespace.
 
 == Phase 1: Catalog Usage
 
@@ -74,15 +82,21 @@ ocp4_workload_tenant_namespace_suffixes:
 |===
 | Variable | Default | Description
 
-| `ocp4_workload_runtime_automation_k8s_sa_name` | `qa-automation` | Name of the ServiceAccount created in the Showroom namespace.
+| `ocp4_workload_runtime_automation_k8s_sa_name` | `qa-automation` | Name of the ServiceAccount created in the Showroom namespace. Also used to derive the RoleBinding/ClusterRoleBinding name (`{{ sa_name }}-{{ guid }}`).
 | `ocp4_workload_runtime_automation_k8s_token_secret_name` | `qa-automation-token` | Name of the long-lived token Secret for that ServiceAccount.
 | `ocp4_workload_runtime_automation_k8s_secret_name` | `qa-automation-kubeconfig` | Name of the Secret that holds the rendered kubeconfig, under key `kubeconfig`. `zerotouch-automation` reads this exact name/key to populate the `k8s_kubeconfig` extravar — only change it if you also update the consumer.
-| `ocp4_workload_runtime_automation_k8s_showroom_namespace` | `{{ ocp4_workload_showroom_namespace \| default('showroom-' + guid) }}` | Showroom namespace to create the SA and Secrets in. Set explicitly to the same value passed to `ocp4_workload_showroom` if it does not use the default.
+| `ocp4_workload_runtime_automation_k8s_showroom_namespace` | `{{ ocp4_workload_showroom_namespace \| default('showroom-' + (guid \| default('00000'))) }}` | Showroom namespace to create the SA and Secrets in. Set explicitly to the same value passed to `ocp4_workload_showroom` if it does not use the default.
 | `ocp4_workload_runtime_automation_k8s_cluster_admin` | `false` | `false`: grant `admin` via RoleBinding in each student namespace (tenant/shared cluster). `true`: grant `cluster-admin` via ClusterRoleBinding (dedicated cluster).
 | `ocp4_workload_runtime_automation_k8s_username` | `{{ ocp4_workload_tenant_keycloak_username \| default('user-' + guid) }}` | Student username prefix used to build student namespace names in tenant mode. Ignored when `cluster_admin: true`.
-| `ocp4_workload_runtime_automation_k8s_namespace_suffixes` | `{{ ocp4_workload_tenant_namespace_suffixes \| default([]) }}` | List of `{suffix: ...}` dicts. Student namespaces are `{{ username }}-{{ suffix }}`. Ignored when `cluster_admin: true`.
+| `ocp4_workload_runtime_automation_k8s_namespace_suffixes` | `{{ ocp4_workload_tenant_namespace_suffixes \| default([]) }}` | List of `{suffix: ...}` dicts. Student namespaces are `{{ username }}-{{ suffix }}`. Ignored when `cluster_admin: true`. In tenant mode, an empty list fails the role instead of silently granting no RBAC.
+| `ocp4_workload_runtime_automation_k8s_namespace_role` | `admin` | ClusterRole granted via RoleBinding in each student namespace (tenant mode).
+| `ocp4_workload_runtime_automation_k8s_cluster_role` | `cluster-admin` | ClusterRole granted via ClusterRoleBinding (dedicated mode).
 | `ocp4_workload_runtime_automation_k8s_openshift_api_url` | `{{ ocp4_workload_showroom_openshift_api_url \| default(openshift_api_url \| default('')) }}` | API URL of the target cluster. Empty string is treated as unset (falls back to in-cluster auth).
 | `ocp4_workload_runtime_automation_k8s_openshift_api_token` | `{{ ocp4_workload_showroom_openshift_api_token \| default(openshift_api_key \| default('')) }}` | API token used to create the above resources. Not stored — only the `qa-automation` SA token is stored in the kubeconfig Secret.
+| `ocp4_workload_runtime_automation_k8s_token_wait_retries` | `12` | Retries while waiting for Kubernetes to populate the token Secret's `data.token`/`data['ca.crt']` keys.
+| `ocp4_workload_runtime_automation_k8s_token_wait_delay` | `5` | Delay (seconds) between token-wait retries.
+| `ocp4_workload_runtime_automation_k8s_retries` | `5` | Retries applied to every other mutating Kubernetes API call in this role (SA, RoleBindings, ClusterRoleBinding, kubeconfig Secret).
+| `ocp4_workload_runtime_automation_k8s_retry_delay` | `5` | Delay (seconds) between those retries.
 |===
 
 == Secret Contract
