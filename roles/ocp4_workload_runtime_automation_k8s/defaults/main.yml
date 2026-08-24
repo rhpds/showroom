@@ -1,0 +1,36 @@
+---
+# ServiceAccount created in the showroom namespace
+ocp4_workload_runtime_automation_k8s_sa_name: zt-runner
+
+# Long-lived token Secret (type kubernetes.io/service-account-token)
+# for the zt-runner ServiceAccount
+ocp4_workload_runtime_automation_k8s_token_secret_name: zt-runner-token
+
+# Secret in the showroom namespace that holds the kubeconfig.
+# zerotouch-automation reads this Secret name and the `kubeconfig` key.
+ocp4_workload_runtime_automation_k8s_secret_name: zt-runner-kubeconfig
+
+# Showroom namespace — mirrors the ocp4_workload_showroom default
+ocp4_workload_runtime_automation_k8s_showroom_namespace: >-
+  {{ ocp4_workload_showroom_namespace | default('showroom-' + guid) }}
+
+# Student username — used with namespace suffixes in tenant mode
+ocp4_workload_runtime_automation_k8s_username: >-
+  {{ ocp4_workload_tenant_keycloak_username | default('user-' + guid) }}
+
+# Student namespace suffixes — same list shape as ocp4_workload_tenant_namespace
+# Each item is a dict with a `suffix` key
+ocp4_workload_runtime_automation_k8s_namespace_suffixes: >-
+  {{ ocp4_workload_tenant_namespace_suffixes | default([]) }}
+
+# Cluster connection — prefer ocp4_workload_showroom vars, then generic
+# AgnosticD vars. Empty string is treated as unset (falls back to
+# in-cluster / kubeconfig auth).
+ocp4_workload_runtime_automation_k8s_openshift_api_url: >-
+  {{ ocp4_workload_showroom_openshift_api_url | default(openshift_api_url | default('')) }}
+ocp4_workload_runtime_automation_k8s_openshift_api_token: >-
+  {{ ocp4_workload_showroom_openshift_api_token | default(openshift_api_key | default('')) }}
+
+# false (default): tenant lab — RoleBinding "admin" in each student namespace
+# true: dedicated cluster — ClusterRoleBinding "cluster-admin"
+ocp4_workload_runtime_automation_k8s_cluster_admin: false

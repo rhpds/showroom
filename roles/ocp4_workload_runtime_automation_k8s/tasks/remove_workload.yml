@@ -1,0 +1,16 @@
+---
+# The zt-runner ServiceAccount and both Secrets are namespace-scoped and are
+# deleted automatically when ocp4_workload_showroom removes the showroom
+# namespace. Only the ClusterRoleBinding (dedicated mode) is cluster-scoped
+# and needs explicit cleanup here.
+
+- name: Delete cluster-admin ClusterRoleBinding (dedicated mode only)
+  when: ocp4_workload_runtime_automation_k8s_cluster_admin | bool
+  kubernetes.core.k8s:
+    host: "{{ ocp4_workload_runtime_automation_k8s_openshift_api_url | default(omit, true) }}"
+    api_key: "{{ ocp4_workload_runtime_automation_k8s_openshift_api_token | default(omit, true) }}"
+    validate_certs: false
+    state: absent
+    api_version: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    name: "zt-runner-{{ guid }}"
