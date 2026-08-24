@@ -1,6 +1,6 @@
 = ocp4_workload_runtime_automation_k8s
 
-An Ansible role that creates a `zt-runner` ServiceAccount and kubeconfig Secret in the Showroom namespace, for use by Showroom runtime-automation (`zerotouch-automation`) playbooks that need OpenShift/Kubernetes API access beyond the Showroom pod's own namespace-scoped `edit` ServiceAccount.
+An Ansible role that creates a `qa-automation` ServiceAccount and kubeconfig Secret in the Showroom namespace, for use by Showroom runtime-automation (`zerotouch-automation`) playbooks that need OpenShift/Kubernetes API access beyond the Showroom pod's own namespace-scoped `edit` ServiceAccount.
 
 == Overview
 
@@ -8,10 +8,10 @@ The Showroom single-pod chart runs every container in the pod (including the `ru
 
 Some labs need runtime-automation validate/setup/solve playbooks to reach further than the Showroom namespace — either `cluster-admin` on a dedicated cluster, or `admin` in one or more separate student namespaces on a shared/tenant cluster. This role provisions that as a **second identity**, not a second pod ServiceAccount:
 
-* Creates ServiceAccount `zt-runner` in the Showroom namespace (`automountServiceAccountToken: false` — nothing runs as this SA, only its token is used).
+* Creates ServiceAccount `qa-automation` in the Showroom namespace (`automountServiceAccountToken: false` — nothing runs as this SA, only its token is used).
 * Creates a long-lived token Secret (`type: kubernetes.io/service-account-token`) for that SA.
 * Grants RBAC: `admin` RoleBinding in each student namespace (default), or a `cluster-admin` ClusterRoleBinding (opt-in).
-* Builds a kubeconfig from that token plus the Secret's `ca.crt`, and stores it in Secret `zt-runner-kubeconfig` (key `kubeconfig`).
+* Builds a kubeconfig from that token plus the Secret's `ca.crt`, and stores it in Secret `qa-automation-kubeconfig` (key `kubeconfig`).
 
 `zerotouch-automation` reads that Secret with the pod's own `edit` ServiceAccount (which can read Secrets in its own namespace) and injects the contents as the Ansible extravar `k8s_kubeconfig`. Playbooks that need the elevated identity set `kubeconfig: "{{ k8s_kubeconfig }}"` on their Kubernetes module calls; anything that does not set this still runs as the namespace-scoped pod SA.
 
@@ -22,10 +22,10 @@ NOTE: This role does not change `serviceAccountName` on the Showroom pod, and th
 When `ACTION=provision`, the role (`tasks/workload.yml`):
 
 1. Builds the student namespace list from `ocp4_workload_runtime_automation_k8s_namespace_suffixes` and `_username` (tenant mode only).
-2. Creates ServiceAccount `zt-runner` in the Showroom namespace.
+2. Creates ServiceAccount `qa-automation` in the Showroom namespace.
 3. Creates a `kubernetes.io/service-account-token` Secret for that SA and waits until Kubernetes populates both `data.token` and `data['ca.crt']`.
 4. Grants RBAC — `admin` RoleBinding per student namespace, or a `cluster-admin` ClusterRoleBinding when `ocp4_workload_runtime_automation_k8s_cluster_admin: true`.
-5. Renders a kubeconfig (embedding the token and CA certificate — no `insecure-skip-tls-verify`) and stores it in Secret `zt-runner-kubeconfig`.
+5. Renders a kubeconfig (embedding the token and CA certificate — no `insecure-skip-tls-verify`) and stores it in Secret `qa-automation-kubeconfig`.
 
 When `ACTION=destroy`, the role (`tasks/remove_workload.yml`) deletes only the `cluster-admin` ClusterRoleBinding (dedicated mode). The ServiceAccount and both Secrets are namespace-scoped and are garbage-collected when `ocp4_workload_showroom` deletes the Showroom namespace; RoleBindings in student namespaces are likewise namespace-scoped and are expected to be cleaned up with those namespaces.
 
@@ -74,23 +74,23 @@ ocp4_workload_tenant_namespace_suffixes:
 |===
 | Variable | Default | Description
 
-| `ocp4_workload_runtime_automation_k8s_sa_name` | `zt-runner` | Name of the ServiceAccount created in the Showroom namespace.
-| `ocp4_workload_runtime_automation_k8s_token_secret_name` | `zt-runner-token` | Name of the long-lived token Secret for that ServiceAccount.
-| `ocp4_workload_runtime_automation_k8s_secret_name` | `zt-runner-kubeconfig` | Name of the Secret that holds the rendered kubeconfig, under key `kubeconfig`. `zerotouch-automation` reads this exact name/key to populate the `k8s_kubeconfig` extravar — only change it if you also update the consumer.
+| `ocp4_workload_runtime_automation_k8s_sa_name` | `qa-automation` | Name of the ServiceAccount created in the Showroom namespace.
+| `ocp4_workload_runtime_automation_k8s_token_secret_name` | `qa-automation-token` | Name of the long-lived token Secret for that ServiceAccount.
+| `ocp4_workload_runtime_automation_k8s_secret_name` | `qa-automation-kubeconfig` | Name of the Secret that holds the rendered kubeconfig, under key `kubeconfig`. `zerotouch-automation` reads this exact name/key to populate the `k8s_kubeconfig` extravar — only change it if you also update the consumer.
 | `ocp4_workload_runtime_automation_k8s_showroom_namespace` | `{{ ocp4_workload_showroom_namespace \| default('showroom-' + guid) }}` | Showroom namespace to create the SA and Secrets in. Set explicitly to the same value passed to `ocp4_workload_showroom` if it does not use the default.
 | `ocp4_workload_runtime_automation_k8s_cluster_admin` | `false` | `false`: grant `admin` via RoleBinding in each student namespace (tenant/shared cluster). `true`: grant `cluster-admin` via ClusterRoleBinding (dedicated cluster).
 | `ocp4_workload_runtime_automation_k8s_username` | `{{ ocp4_workload_tenant_keycloak_username \| default('user-' + guid) }}` | Student username prefix used to build student namespace names in tenant mode. Ignored when `cluster_admin: true`.
 | `ocp4_workload_runtime_automation_k8s_namespace_suffixes` | `{{ ocp4_workload_tenant_namespace_suffixes \| default([]) }}` | List of `{suffix: ...}` dicts. Student namespaces are `{{ username }}-{{ suffix }}`. Ignored when `cluster_admin: true`.
 | `ocp4_workload_runtime_automation_k8s_openshift_api_url` | `{{ ocp4_workload_showroom_openshift_api_url \| default(openshift_api_url \| default('')) }}` | API URL of the target cluster. Empty string is treated as unset (falls back to in-cluster auth).
-| `ocp4_workload_runtime_automation_k8s_openshift_api_token` | `{{ ocp4_workload_showroom_openshift_api_token \| default(openshift_api_key \| default('')) }}` | API token used to create the above resources. Not stored — only the `zt-runner` SA token is stored in the kubeconfig Secret.
+| `ocp4_workload_runtime_automation_k8s_openshift_api_token` | `{{ ocp4_workload_showroom_openshift_api_token \| default(openshift_api_key \| default('')) }}` | API token used to create the above resources. Not stored — only the `qa-automation` SA token is stored in the kubeconfig Secret.
 |===
 
 == Secret Contract
 
 Consumers (`zerotouch-automation` `core/user_data.py`) expect, in the Showroom namespace:
 
-* Secret name: `zt-runner-kubeconfig` (or `ocp4_workload_runtime_automation_k8s_secret_name` if overridden).
-* Key: `kubeconfig` — a complete kubeconfig document, current-context `zt-runner`, pointed at the target cluster with the `zt-runner` SA token and its CA certificate embedded (no `insecure-skip-tls-verify`).
+* Secret name: `qa-automation-kubeconfig` (or `ocp4_workload_runtime_automation_k8s_secret_name` if overridden).
+* Key: `kubeconfig` — a complete kubeconfig document, current-context `qa-automation`, pointed at the target cluster with the `qa-automation` SA token and its CA certificate embedded (no `insecure-skip-tls-verify`).
 
 == Prerequisites
 

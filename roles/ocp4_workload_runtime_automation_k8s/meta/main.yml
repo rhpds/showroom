@@ -2,7 +2,7 @@
 galaxy_info:
   author: Red Hat
   description: >-
-    Creates a zt-runner ServiceAccount and kubeconfig Secret in the Showroom
+    Creates a qa-automation ServiceAccount and kubeconfig Secret in the Showroom
     namespace for runtime-automation playbooks, with optional cluster-admin
     or per-student-namespace admin RBAC.
   company: Red Hat

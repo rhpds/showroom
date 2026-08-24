@@ -1,14 +1,14 @@
 ---
 # ServiceAccount created in the showroom namespace
-ocp4_workload_runtime_automation_k8s_sa_name: zt-runner
+ocp4_workload_runtime_automation_k8s_sa_name: qa-automation
 
 # Long-lived token Secret (type kubernetes.io/service-account-token)
-# for the zt-runner ServiceAccount
-ocp4_workload_runtime_automation_k8s_token_secret_name: zt-runner-token
+# for the qa-automation ServiceAccount
+ocp4_workload_runtime_automation_k8s_token_secret_name: qa-automation-token
 
 # Secret in the showroom namespace that holds the kubeconfig.
 # zerotouch-automation reads this Secret name and the `kubeconfig` key.
-ocp4_workload_runtime_automation_k8s_secret_name: zt-runner-kubeconfig
+ocp4_workload_runtime_automation_k8s_secret_name: qa-automation-kubeconfig
 
 # Showroom namespace — mirrors the ocp4_workload_showroom default
 ocp4_workload_runtime_automation_k8s_showroom_namespace: >-

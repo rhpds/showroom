@@ -2,8 +2,8 @@
 # =============================================================================
 # ocp4_workload_runtime_automation_k8s
 #
-# Creates a zt-runner ServiceAccount in the showroom namespace and generates
-# a kubeconfig Secret (zt-runner-kubeconfig / key "kubeconfig") consumed by
+# Creates a qa-automation ServiceAccount in the showroom namespace and generates
+# a kubeconfig Secret (qa-automation-kubeconfig / key "kubeconfig") consumed by
 # zerotouch-automation as the Ansible extravar k8s_kubeconfig.
 #
 # Tenant mode (cluster_admin: false, default):
@@ -21,7 +21,7 @@
                ocp4_workload_runtime_automation_k8s_username + '-\1')
          | list }}
 
-- name: Create zt-runner ServiceAccount in showroom namespace
+- name: Create qa-automation ServiceAccount in showroom namespace
   kubernetes.core.k8s:
     host: "{{ ocp4_workload_runtime_automation_k8s_openshift_api_url | default(omit, true) }}"
     api_key: "{{ ocp4_workload_runtime_automation_k8s_openshift_api_token | default(omit, true) }}"
@@ -38,7 +38,7 @@
           guid: "{{ guid }}"
       automountServiceAccountToken: false
 
-- name: Create long-lived token Secret for zt-runner ServiceAccount
+- name: Create long-lived token Secret for qa-automation ServiceAccount
   kubernetes.core.k8s:
     host: "{{ ocp4_workload_runtime_automation_k8s_openshift_api_url | default(omit, true) }}"
     api_key: "{{ ocp4_workload_runtime_automation_k8s_openshift_api_token | default(omit, true) }}"
@@ -82,7 +82,7 @@
       {{ ocp4_workload_runtime_automation_k8s_openshift_api_url
          | default('https://kubernetes.default.svc', true) }}
 
-- name: Grant zt-runner ServiceAccount admin in each student namespace
+- name: Grant qa-automation ServiceAccount admin in each student namespace
   when: not (ocp4_workload_runtime_automation_k8s_cluster_admin | bool)
   kubernetes.core.k8s:
     host: "{{ ocp4_workload_runtime_automation_k8s_openshift_api_url | default(omit, true) }}"
@@ -93,7 +93,7 @@
       apiVersion: rbac.authorization.k8s.io/v1
       kind: RoleBinding
       metadata:
-        name: zt-runner
+        name: qa-automation
         namespace: "{{ item }}"
         labels:
           created-by: agnosticd.showroom.ocp4_workload_runtime_automation_k8s
@@ -108,7 +108,7 @@
         apiGroup: rbac.authorization.k8s.io
   loop: "{{ _rak8s_namespaces }}"
 
-- name: Grant zt-runner ServiceAccount cluster-admin (dedicated mode)
+- name: Grant qa-automation ServiceAccount cluster-admin (dedicated mode)
   when: ocp4_workload_runtime_automation_k8s_cluster_admin | bool
   kubernetes.core.k8s:
     host: "{{ ocp4_workload_runtime_automation_k8s_openshift_api_url | default(omit, true) }}"
@@ -119,7 +119,7 @@
       apiVersion: rbac.authorization.k8s.io/v1
       kind: ClusterRoleBinding
       metadata:
-        name: "zt-runner-{{ guid }}"
+        name: "qa-automation-{{ guid }}"
         labels:
           created-by: agnosticd.showroom.ocp4_workload_runtime_automation_k8s
           guid: "{{ guid }}"
