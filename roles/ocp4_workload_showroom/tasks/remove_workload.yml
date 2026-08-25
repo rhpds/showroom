@@ -17,6 +17,14 @@
       WARNING: agnosticd_user_data lookup returned nothing.
       If this is a multi-user environment, per-user namespaces will NOT be cleaned up.
 
+- name: Remove runtime automation identity (single user)
+  when:
+    - _showroom_user_data.users | default(none) is none
+    - ocp4_workload_showroom_runtime_automation_enable | bool
+  vars:
+    _showroom_namespace: "{{ ocp4_workload_showroom_namespace }}"
+  ansible.builtin.include_tasks: remove_runtime_automation_identity.yaml
+
 - name: Remove Namespace (single user)
   when: _showroom_user_data.users | default(none) is none
   kubernetes.core.k8s:
@@ -49,6 +57,20 @@
   delay: 10
   until: r_ns_single.resources | default([]) | length == 0
   failed_when: false
+
+- name: Remove runtime automation identity (multi user)
+  when:
+    - _showroom_user_data.users | default(none) is not none
+    - ocp4_workload_showroom_runtime_automation_enable | bool
+  vars:
+    _showroom_user: "{{ _showroom_users_item.key }}"
+    _showroom_namespace: "{{ ocp4_workload_showroom_namespace }}-{{ _showroom_user }}"
+  ansible.builtin.include_tasks: remove_runtime_automation_identity.yaml
+  loop: >-
+    {{ _showroom_user_data.users | dict2items }}
+  loop_control:
+    loop_var: _showroom_users_item
+    label: "{{ _showroom_users_item.key }}"
 
 - name: Remove Namespaces (multi user)
   when: _showroom_user_data.users | default(none) is not none

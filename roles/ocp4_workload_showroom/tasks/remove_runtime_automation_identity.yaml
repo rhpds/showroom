@@ -1,0 +1,43 @@
+---
+# Deletes the RBAC grants created by setup_runtime_automation_identity.yaml
+# for the runtime-automation ServiceAccount. The ServiceAccount and both
+# Secrets are namespace-scoped and are deleted automatically when the
+# showroom namespace itself is removed. The RoleBindings (tenant mode) and
+# ClusterRoleBinding (dedicated mode) are explicitly deleted here since they
+# live in namespaces -- or at cluster scope -- that are not removed as part
+# of showroom namespace deletion.
+
+- name: Build runtime automation namespace list
+  ansible.builtin.include_tasks: build_runtime_automation_namespace_list.yaml
+
+- name: Delete admin RoleBinding from each target namespace (tenant mode only)
+  when: not (ocp4_workload_showroom_runtime_automation_cluster_admin | bool)
+  kubernetes.core.k8s:
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit, true) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit, true) }}"
+    validate_certs: false
+    state: absent
+    api_version: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    name: "{{ ocp4_workload_showroom_runtime_automation_sa_name }}-{{ guid }}"
+    namespace: "{{ item }}"
+  loop: "{{ _runtime_automation_namespaces }}"
+  register: r_runtime_automation_rolebinding_delete
+  until: r_runtime_automation_rolebinding_delete is succeeded
+  retries: "{{ ocp4_workload_showroom_runtime_automation_retries }}"
+  delay: "{{ ocp4_workload_showroom_runtime_automation_retry_delay }}"
+
+- name: Delete cluster-admin ClusterRoleBinding (dedicated mode only)
+  when: ocp4_workload_showroom_runtime_automation_cluster_admin | bool
+  kubernetes.core.k8s:
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit, true) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit, true) }}"
+    validate_certs: false
+    state: absent
+    api_version: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    name: "{{ ocp4_workload_showroom_runtime_automation_sa_name }}-{{ guid }}"
+  register: r_runtime_automation_clusterrolebinding_delete
+  until: r_runtime_automation_clusterrolebinding_delete is succeeded
+  retries: "{{ ocp4_workload_showroom_runtime_automation_retries }}"
+  delay: "{{ ocp4_workload_showroom_runtime_automation_retry_delay }}"

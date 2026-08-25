@@ -1,0 +1,19 @@
+---
+# Builds _runtime_automation_namespaces: the list of target namespace names
+# ("{{ username }}-{{ suffix }}") to grant the runtime-automation identity
+# admin access to, on shared/tenant clusters (cluster_admin: false). Shared
+# by setup_runtime_automation_identity.yaml and remove_runtime_automation_identity.yaml
+# so provisioning and teardown always compute the exact same namespace list.
+
+- name: Initialize runtime automation namespace list
+  ansible.builtin.set_fact:
+    _runtime_automation_namespaces: []
+
+- name: Build runtime automation namespace list
+  ansible.builtin.set_fact:
+    _runtime_automation_namespaces: >-
+      {{ _runtime_automation_namespaces
+         + [ocp4_workload_showroom_runtime_automation_username + '-' + item.suffix] }}
+  loop: "{{ ocp4_workload_showroom_runtime_automation_namespace_suffixes }}"
+  loop_control:
+    label: "{{ item.suffix }}"

@@ -354,6 +354,79 @@ If these are not pre-populated, `tasks/prepare_variables.yaml` can auto-fill the
 |If `true`, `agnosticd_passthrough_user_data` is copied into per-user entries in `user_data` before deployment.
 |===
 
+=== Runtime Automation Identity
+
+When `ocp4_workload_showroom_runtime_automation_enable` is `true`, a ServiceAccount and kubeconfig Secret are created in the showroom namespace *before* the pod is deployed, so `zerotouch-automation`'s `runner` container always finds the Secret already in place at startup (it only loads `k8s_kubeconfig` once, at process start). Playbooks that need Kubernetes access beyond the pod's own namespace-scoped `edit` ServiceAccount set `kubeconfig: "{{ k8s_kubeconfig }}"` on their `kubernetes.core.*` module calls; anything that doesn't set this still runs as the pod's own SA.
+
+NOTE: This requires `zerotouch-automation` `>= v1.3.2` (the runtime automation image is now pinned to this version by default -- see `ocp4_workload_showroom_runtime_automation_image`), which reads the kubeconfig Secret name from the `RUNTIME_AUTOMATION_KUBECONFIG_SECRET_NAME` setting (default `runtime-automation-kubeconfig`, matching this role's default).
+
+In multi-user mode, one identity is created per user namespace, automatically, alongside each user's pod.
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`ocp4_workload_showroom_runtime_automation_cluster_admin`
+|boolean
+|`false`
+|`false`: grant `admin` via RoleBinding in each namespace listed in `ocp4_workload_showroom_runtime_automation_namespace_suffixes` (tenant/shared cluster). With no suffixes given, the identity is created but granted no RBAC. `true`: grant `cluster-admin` via ClusterRoleBinding (dedicated cluster).
+
+|`ocp4_workload_showroom_runtime_automation_namespace_suffixes`
+|list
+|`{{ ocp4_workload_tenant_namespace_suffixes \| default([]) }}`
+|Target namespaces (outside the showroom namespace) to grant admin access to in tenant mode. Each item is a dict with a `suffix` key.
+
+|`ocp4_workload_showroom_runtime_automation_username`
+|string
+|`{{ ocp4_workload_tenant_keycloak_username \| default(_showroom_user \| default('user-' + guid)) }}`
+|Username prefix used to build target namespace names in tenant mode.
+
+|`ocp4_workload_showroom_runtime_automation_namespace_role`
+|string
+|`admin`
+|ClusterRole granted via RoleBinding in each target namespace (tenant mode).
+
+|`ocp4_workload_showroom_runtime_automation_cluster_role`
+|string
+|`cluster-admin`
+|ClusterRole granted via ClusterRoleBinding (dedicated mode).
+
+|`ocp4_workload_showroom_runtime_automation_sa_name`
+|string
+|`runtime-automation`
+|Name of the ServiceAccount created in the showroom namespace.
+
+|`ocp4_workload_showroom_runtime_automation_token_secret_name`
+|string
+|`runtime-automation-token`
+|Name of the long-lived token Secret for that ServiceAccount.
+
+|`ocp4_workload_showroom_runtime_automation_secret_name`
+|string
+|`runtime-automation-kubeconfig`
+|Name of the Secret holding the rendered kubeconfig (key `kubeconfig`). `zerotouch-automation` reads this exact name/key -- only change it if you also set `RUNTIME_AUTOMATION_KUBECONFIG_SECRET_NAME` on the consumer.
+
+|`ocp4_workload_showroom_runtime_automation_token_wait_retries`
+|integer
+|`12`
+|Retries while waiting for Kubernetes to populate the token Secret's `data.token`/`data['ca.crt']` keys.
+
+|`ocp4_workload_showroom_runtime_automation_token_wait_delay`
+|integer
+|`5`
+|Delay (seconds) between token-wait retries.
+
+|`ocp4_workload_showroom_runtime_automation_retries`
+|integer
+|`5`
+|Retries applied to every other mutating Kubernetes API call for the runtime automation identity.
+
+|`ocp4_workload_showroom_runtime_automation_retry_delay`
+|integer
+|`5`
+|Delay (seconds) between those retries.
+|===
+
 === Remote Cluster Deployment
 
 To target a different cluster than the one Ansible is running against, set:

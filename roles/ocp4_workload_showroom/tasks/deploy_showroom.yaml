@@ -6,6 +6,10 @@
 - name: Setup Namespace
   ansible.builtin.include_tasks: setup_namespace.yaml
 
+- name: Setup runtime automation identity (SA + kubeconfig Secret)
+  when: ocp4_workload_showroom_runtime_automation_enable | bool
+  ansible.builtin.include_tasks: setup_runtime_automation_identity.yaml
+
 - name: Render helm chart with values
   environment:
     K8S_AUTH_HOST: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"

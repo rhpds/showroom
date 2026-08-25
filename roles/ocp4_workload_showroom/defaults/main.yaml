@@ -95,13 +95,66 @@ ocp4_workload_showroom_zero_touch_bundle: "https://github.com/rhpds/nookbag/rele
 # Deploy a runtime automation runner sidecar container.
 # Adds a /stream/ endpoint for SSE-based automation events.
 ocp4_workload_showroom_runtime_automation_enable: false
-# Override runtime automation image (empty = use chart default)
-ocp4_workload_showroom_runtime_automation_image: ""
+# Runtime automation (zerotouch-automation) image. Pinned here (rather than
+# deferring to the chart default) because the runtime automation identity
+# feature below requires >= v1.3.2, which reads the configurable
+# RUNTIME_AUTOMATION_KUBECONFIG_SECRET_NAME (default runtime-automation-kubeconfig).
+# Override to "" to fall back to the chart's own default image.
+ocp4_workload_showroom_runtime_automation_image: "quay.io/rhpds/zerotouch-automation:v1.3.2"
 ocp4_workload_showroom_runtime_automation_environment_variables: {}
 # Ansible credentials for runtime automation playbooks that target remote hosts.
 # Optional; only needed when playbooks SSH to remote hosts.
 ocp4_workload_showroom_runtime_automation_ansible_user: ""
 ocp4_workload_showroom_runtime_automation_ansible_password: ""
+
+# Runtime automation identity: when runtime_automation_enable is true, a
+# ServiceAccount + kubeconfig Secret are created in the showroom namespace
+# (before the pod is deployed) so runtime-automation/qa-automation playbooks
+# can request Kubernetes access beyond the pod's own namespace-scoped `edit`
+# ServiceAccount. zerotouch-automation reads the Secret at startup and
+# injects its contents as the Ansible extravar k8s_kubeconfig.
+#
+# false (default): grant `admin` via RoleBinding in each namespace listed in
+#   ocp4_workload_showroom_runtime_automation_namespace_suffixes (tenant/shared
+#   cluster). With no suffixes given, the identity is created but granted no RBAC.
+# true: grant `cluster-admin` via ClusterRoleBinding (dedicated cluster).
+ocp4_workload_showroom_runtime_automation_cluster_admin: false
+
+# Target namespaces (outside the showroom namespace) to grant admin access to
+# in tenant mode. Each item is a dict with a `suffix` key; namespaces are
+# named "{{ ocp4_workload_showroom_runtime_automation_username }}-{{ suffix }}".
+ocp4_workload_showroom_runtime_automation_namespace_suffixes: >-
+  {{ ocp4_workload_tenant_namespace_suffixes | default([]) }}
+
+# Username prefix used to build target namespace names in tenant mode.
+# Falls back to the current showroom user in multi-user mode.
+ocp4_workload_showroom_runtime_automation_username: >-
+  {{ ocp4_workload_tenant_keycloak_username | default(_showroom_user | default('user-' + guid)) }}
+
+# ClusterRole granted via RoleBinding in each target namespace (tenant mode).
+ocp4_workload_showroom_runtime_automation_namespace_role: admin
+# ClusterRole granted via ClusterRoleBinding (dedicated mode).
+ocp4_workload_showroom_runtime_automation_cluster_role: cluster-admin
+
+# Name of the ServiceAccount created in the showroom namespace, and the
+# long-lived token Secret / kubeconfig Secret derived from it.
+ocp4_workload_showroom_runtime_automation_sa_name: runtime-automation
+ocp4_workload_showroom_runtime_automation_token_secret_name: runtime-automation-token
+# zerotouch-automation reads this exact Secret name/key to populate the
+# k8s_kubeconfig extravar -- only change it if you also update the consumer
+# (RUNTIME_AUTOMATION_KUBECONFIG_SECRET_NAME env var).
+ocp4_workload_showroom_runtime_automation_secret_name: runtime-automation-kubeconfig
+
+# Retries/delay (seconds) while waiting for Kubernetes to populate the
+# long-lived token Secret's `data.token` / `data['ca.crt']` keys.
+ocp4_workload_showroom_runtime_automation_token_wait_retries: 12
+ocp4_workload_showroom_runtime_automation_token_wait_delay: 5
+
+# Retries/delay (seconds) applied to every other mutating Kubernetes API
+# call for the runtime automation identity, to ride out transient
+# API-server errors.
+ocp4_workload_showroom_runtime_automation_retries: 5
+ocp4_workload_showroom_runtime_automation_retry_delay: 5
 
 # Enable passthrough of agnosticd_passthrough_user_data to individual users
 ocp4_workload_showroom_passthrough_user_data: false
