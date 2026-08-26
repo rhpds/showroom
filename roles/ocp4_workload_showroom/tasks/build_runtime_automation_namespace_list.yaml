@@ -5,6 +5,19 @@
 # by setup_runtime_automation_identity.yaml and remove_runtime_automation_identity.yaml
 # so provisioning and teardown always compute the exact same namespace list.
 
+- name: Assert namespace suffix items are mappings with a suffix key
+  ansible.builtin.assert:
+    that:
+      - item is mapping
+      - item.suffix is defined
+    quiet: true
+    fail_msg: >-
+      ocp4_workload_showroom_runtime_automation_namespace_suffixes items must
+      be mappings with a 'suffix' key (e.g. {suffix: dev}), got: {{ item }}
+  loop: "{{ ocp4_workload_showroom_runtime_automation_namespace_suffixes }}"
+  loop_control:
+    label: "{{ item }}"
+
 - name: Initialize runtime automation namespace list
   ansible.builtin.set_fact:
     _runtime_automation_namespaces: []
