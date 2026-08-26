@@ -187,8 +187,8 @@ Defaults come from `defaults/main.yaml` unless otherwise noted.
 
 |`ocp4_workload_showroom_terminal_type`
 |string
-|`showroom`
-|Terminal type: `showroom` (containerized tools), `wetty` (SSH via wetty), or `""` (no terminal).
+|`ocp-terminal`
+|Terminal type: `ocp-terminal` (ttyd sandbox with oc CLI), `wetty` (SSH via wetty), `both` (deploy both), `showroom` (deprecated alias for `ocp-terminal`), or `""` (no terminal).
 
 |`ocp4_workload_showroom_terminal_image`
 |string
@@ -197,7 +197,7 @@ Defaults come from `defaults/main.yaml` unless otherwise noted.
 
 |`ocp4_workload_showroom_wetty_image`
 |string
-|`quay.io/rhpds/wetty:v2.5`
+|`quay.io/rhpds/wetty:v3.2.1`
 |Image used when `terminal_type` is `wetty`.
 
 |`ocp4_workload_showroom_terminal_requests_cpu`
@@ -274,11 +274,6 @@ If these are not pre-populated, `tasks/prepare_variables.yaml` can auto-fill the
 |`128.0.0.1:5900`
 |VNC server address in `host:port` form.
 
-|`ocp4_workload_showroom_novnc_vnc_server_password`
-|string
-|`password`
-|VNC password passed to the NoVNC client.
-
 |`ocp4_workload_showroom_novnc_image`
 |string
 |`ghcr.io/rhpds/showroom-novnc:latest`
@@ -323,7 +318,7 @@ If these are not pre-populated, `tasks/prepare_variables.yaml` can auto-fill the
 
 |`ocp4_workload_showroom_deployer_chart_version`
 |string
-|`"2.1.*"`
+|`"2.2.*"`
 |Chart version or semver range.
 
 |`ocp4_workload_showroom_service_name`
@@ -340,7 +335,7 @@ If these are not pre-populated, `tasks/prepare_variables.yaml` can auto-fill the
 
 |`ocp4_workload_showroom_zero_touch_bundle`
 |string
-|`https://github.com/rhpds/nookbag/releases/download/nookbag-v0.3.7/nookbag-v0.3.7.zip`
+|`https://github.com/rhpds/nookbag/releases/download/nookbag-v0.4.0/nookbag-v0.4.0.zip`
 |URL of the zero-touch automation bundle (nookbag) exposed to the content container.
 
 |`ocp4_workload_showroom_runtime_automation_enable`
