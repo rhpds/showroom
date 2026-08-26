@@ -358,7 +358,7 @@ If these are not pre-populated, `tasks/prepare_variables.yaml` can auto-fill the
 
 When `ocp4_workload_showroom_runtime_automation_enable` is `true`, a ServiceAccount and kubeconfig Secret are created in the showroom namespace *before* the pod is deployed, so `zerotouch-automation`'s `runner` container always finds the Secret already in place at startup (it only loads `k8s_kubeconfig` once, at process start). Playbooks that need Kubernetes access beyond the pod's own namespace-scoped `edit` ServiceAccount set `kubeconfig: "{{ k8s_kubeconfig }}"` on their `kubernetes.core.*` module calls; anything that doesn't set this still runs as the pod's own SA.
 
-NOTE: This requires `zerotouch-automation` `>= v1.3.2` (the runtime automation image is now pinned to this version by default -- see `ocp4_workload_showroom_runtime_automation_image`), which reads the kubeconfig Secret name from the `RUNTIME_AUTOMATION_KUBECONFIG_SECRET_NAME` setting (default `runtime-automation-kubeconfig`, matching this role's default).
+NOTE: This requires `zerotouch-automation` `>= v1.3.3` (the runtime automation image is now pinned to this version by default -- see `ocp4_workload_showroom_runtime_automation_image`), which reads the kubeconfig Secret name from the `RUNTIME_AUTOMATION_KUBECONFIG_SECRET_NAME` setting (default `runtime-automation-kubeconfig`, matching this role's default) and passes it through to playbooks run via both the POST+poll `/api/` endpoint and the SSE `/stream/` endpoint.
 
 In multi-user mode, one identity is created per user namespace, automatically, alongside each user's pod.
 

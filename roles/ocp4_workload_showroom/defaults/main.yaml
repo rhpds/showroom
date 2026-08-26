@@ -99,8 +99,10 @@ ocp4_workload_showroom_runtime_automation_enable: false
 # deferring to the chart default) because the runtime automation identity
 # feature below requires >= v1.3.2, which reads the configurable
 # RUNTIME_AUTOMATION_KUBECONFIG_SECRET_NAME (default runtime-automation-kubeconfig).
+# v1.3.3 additionally fixes the /stream/{module}/{stage} endpoint to pass
+# k8s_kubeconfig (and other USER_DATA extravars) through to streamed playbooks.
 # Override to "" to fall back to the chart's own default image.
-ocp4_workload_showroom_runtime_automation_image: "quay.io/rhpds/zerotouch-automation:v1.3.2"
+ocp4_workload_showroom_runtime_automation_image: "quay.io/rhpds/zerotouch-automation:v1.3.3"
 ocp4_workload_showroom_runtime_automation_environment_variables: {}
 # Ansible credentials for runtime automation playbooks that target remote hosts.
 # Optional; only needed when playbooks SSH to remote hosts.
