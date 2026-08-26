@@ -47,7 +47,7 @@
         name: "{{ ocp4_workload_showroom_runtime_automation_sa_name }}"
         namespace: "{{ _showroom_namespace }}"
         labels:
-          created-by: agnosticd.showroom.ocp4_workload_showroom
+          creator: agnosticd.showroom.ocp4_workload_showroom
           component: runtime-automation
           guid: "{{ guid }}"
       automountServiceAccountToken: false
@@ -71,7 +71,7 @@
         annotations:
           kubernetes.io/service-account.name: "{{ ocp4_workload_showroom_runtime_automation_sa_name }}"
         labels:
-          created-by: agnosticd.showroom.ocp4_workload_showroom
+          creator: agnosticd.showroom.ocp4_workload_showroom
           component: runtime-automation
           guid: "{{ guid }}"
       type: kubernetes.io/service-account-token
@@ -111,7 +111,7 @@
         name: "{{ ocp4_workload_showroom_runtime_automation_sa_name }}-{{ _showroom_namespace }}"
         namespace: "{{ item }}"
         labels:
-          created-by: agnosticd.showroom.ocp4_workload_showroom
+          creator: agnosticd.showroom.ocp4_workload_showroom
           component: runtime-automation
           guid: "{{ guid }}"
       subjects:
@@ -141,7 +141,7 @@
       metadata:
         name: "{{ ocp4_workload_showroom_runtime_automation_sa_name }}-{{ _showroom_namespace }}"
         labels:
-          created-by: agnosticd.showroom.ocp4_workload_showroom
+          creator: agnosticd.showroom.ocp4_workload_showroom
           component: runtime-automation
           guid: "{{ guid }}"
       subjects:
@@ -176,7 +176,7 @@
         name: "{{ ocp4_workload_showroom_runtime_automation_secret_name }}"
         namespace: "{{ _showroom_namespace }}"
         labels:
-          created-by: agnosticd.showroom.ocp4_workload_showroom
+          creator: agnosticd.showroom.ocp4_workload_showroom
           component: runtime-automation
           guid: "{{ guid }}"
           mode: "{{ 'cluster-admin' if ocp4_workload_showroom_runtime_automation_cluster_admin | bool else 'namespace-admin' }}"
