@@ -1,0 +1,21 @@
+---
+galaxy_info:
+  author: Red Hat
+  description: >-
+    Deploys Showroom lab instruction environments to OpenShift clusters with
+    rendered Antora content, integrated terminals, optional VNC access, and
+    an optional runtime-automation identity for zerotouch-automation.
+  company: Red Hat
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.14"
+  galaxy_tags:
+    - openshift
+    - showroom
+    - antora
+    - automation
+
+dependencies: []
+
+collections:
+  - kubernetes.core
+  - agnosticd.core

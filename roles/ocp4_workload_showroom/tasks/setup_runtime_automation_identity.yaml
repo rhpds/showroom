@@ -1,0 +1,194 @@
+---
+# =============================================================================
+# Runtime automation identity
+#
+# Creates a runtime-automation ServiceAccount in the showroom namespace and
+# generates a kubeconfig Secret (runtime-automation-kubeconfig / key
+# "kubeconfig") consumed by zerotouch-automation as the Ansible extravar
+# k8s_kubeconfig. Runs before the Helm chart is deployed (see
+# deploy_showroom.yaml) so the kubeconfig Secret always exists before the
+# runner sidecar container starts and loads it.
+#
+# Tenant mode (cluster_admin: false, default):
+#   SA gets an "admin" RoleBinding in each target namespace (if any
+#   ocp4_workload_showroom_runtime_automation_namespace_suffixes are given).
+#   With none given, the SA is created but granted no RBAC.
+# Dedicated mode (cluster_admin: true):
+#   SA gets a cluster-admin ClusterRoleBinding.
+# =============================================================================
+
+- name: Build runtime automation namespace list
+  ansible.builtin.include_tasks: build_runtime_automation_namespace_list.yaml
+
+- name: Note when tenant mode has no target namespaces configured
+  when:
+    - not (ocp4_workload_showroom_runtime_automation_cluster_admin | bool)
+    - _runtime_automation_namespaces | length == 0
+  ansible.builtin.debug:
+    msg: >-
+      ocp4_workload_showroom_runtime_automation_cluster_admin is false and no
+      namespace suffixes were provided — the
+      {{ ocp4_workload_showroom_runtime_automation_sa_name }} SA will be
+      created with no RBAC granted. Set
+      ocp4_workload_showroom_runtime_automation_namespace_suffixes or
+      ocp4_workload_showroom_runtime_automation_cluster_admin: true if
+      playbooks need elevated Kubernetes access.
+
+- name: Create runtime-automation ServiceAccount in showroom namespace
+  kubernetes.core.k8s:
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit, true) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit, true) }}"
+    validate_certs: false
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: "{{ ocp4_workload_showroom_runtime_automation_sa_name }}"
+        namespace: "{{ _showroom_namespace }}"
+        labels:
+          creator: agnosticd.showroom.ocp4_workload_showroom
+          component: runtime-automation
+          guid: "{{ guid }}"
+      automountServiceAccountToken: false
+  register: r_runtime_automation_sa
+  until: r_runtime_automation_sa is succeeded
+  retries: "{{ ocp4_workload_showroom_runtime_automation_retries }}"
+  delay: "{{ ocp4_workload_showroom_runtime_automation_retry_delay }}"
+
+- name: Create long-lived token Secret for runtime-automation ServiceAccount
+  kubernetes.core.k8s:
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit, true) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit, true) }}"
+    validate_certs: false
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ ocp4_workload_showroom_runtime_automation_token_secret_name }}"
+        namespace: "{{ _showroom_namespace }}"
+        annotations:
+          kubernetes.io/service-account.name: "{{ ocp4_workload_showroom_runtime_automation_sa_name }}"
+        labels:
+          creator: agnosticd.showroom.ocp4_workload_showroom
+          component: runtime-automation
+          guid: "{{ guid }}"
+      type: kubernetes.io/service-account-token
+  register: r_runtime_automation_token_secret
+  until: r_runtime_automation_token_secret is succeeded
+  retries: "{{ ocp4_workload_showroom_runtime_automation_retries }}"
+  delay: "{{ ocp4_workload_showroom_runtime_automation_retry_delay }}"
+
+- name: Wait for token Secret to be populated with token and CA data
+  kubernetes.core.k8s_info:
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit, true) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit, true) }}"
+    validate_certs: false
+    api_version: v1
+    kind: Secret
+    name: "{{ ocp4_workload_showroom_runtime_automation_token_secret_name }}"
+    namespace: "{{ _showroom_namespace }}"
+  register: r_runtime_automation_token
+  retries: "{{ ocp4_workload_showroom_runtime_automation_token_wait_retries }}"
+  delay: "{{ ocp4_workload_showroom_runtime_automation_token_wait_delay }}"
+  until: >-
+    r_runtime_automation_token.resources | length > 0
+    and (r_runtime_automation_token.resources[0].data.token | default('')) | length > 0
+    and (r_runtime_automation_token.resources[0].data['ca.crt'] | default('')) | length > 0
+
+- name: Grant runtime-automation ServiceAccount admin in each target namespace
+  when: not (ocp4_workload_showroom_runtime_automation_cluster_admin | bool)
+  kubernetes.core.k8s:
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit, true) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit, true) }}"
+    validate_certs: false
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: "{{ ocp4_workload_showroom_runtime_automation_sa_name }}-{{ _showroom_namespace }}"
+        namespace: "{{ item }}"
+        labels:
+          creator: agnosticd.showroom.ocp4_workload_showroom
+          component: runtime-automation
+          guid: "{{ guid }}"
+      subjects:
+        - kind: ServiceAccount
+          name: "{{ ocp4_workload_showroom_runtime_automation_sa_name }}"
+          namespace: "{{ _showroom_namespace }}"
+      roleRef:
+        kind: ClusterRole
+        name: "{{ ocp4_workload_showroom_runtime_automation_namespace_role }}"
+        apiGroup: rbac.authorization.k8s.io
+  loop: "{{ _runtime_automation_namespaces }}"
+  register: r_runtime_automation_rolebinding
+  until: r_runtime_automation_rolebinding is succeeded
+  retries: "{{ ocp4_workload_showroom_runtime_automation_retries }}"
+  delay: "{{ ocp4_workload_showroom_runtime_automation_retry_delay }}"
+
+- name: Grant runtime-automation ServiceAccount cluster-admin (dedicated mode)
+  when: ocp4_workload_showroom_runtime_automation_cluster_admin | bool
+  kubernetes.core.k8s:
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit, true) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit, true) }}"
+    validate_certs: false
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: "{{ ocp4_workload_showroom_runtime_automation_sa_name }}-{{ _showroom_namespace }}"
+        labels:
+          creator: agnosticd.showroom.ocp4_workload_showroom
+          component: runtime-automation
+          guid: "{{ guid }}"
+      subjects:
+        - kind: ServiceAccount
+          name: "{{ ocp4_workload_showroom_runtime_automation_sa_name }}"
+          namespace: "{{ _showroom_namespace }}"
+      roleRef:
+        kind: ClusterRole
+        name: "{{ ocp4_workload_showroom_runtime_automation_cluster_role }}"
+        apiGroup: rbac.authorization.k8s.io
+  register: r_runtime_automation_clusterrolebinding
+  until: r_runtime_automation_clusterrolebinding is succeeded
+  retries: "{{ ocp4_workload_showroom_runtime_automation_retries }}"
+  delay: "{{ ocp4_workload_showroom_runtime_automation_retry_delay }}"
+
+- name: Store kubeconfig Secret in showroom namespace
+  vars:
+    _runtime_automation_token: "{{ r_runtime_automation_token.resources[0].data.token | b64decode }}"
+    _runtime_automation_ca_crt_b64: "{{ r_runtime_automation_token.resources[0].data['ca.crt'] }}"
+    _runtime_automation_api_server: >-
+      {{ ocp4_workload_showroom_openshift_api_url
+         | default('https://kubernetes.default.svc', true) }}
+  kubernetes.core.k8s:
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit, true) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit, true) }}"
+    validate_certs: false
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ ocp4_workload_showroom_runtime_automation_secret_name }}"
+        namespace: "{{ _showroom_namespace }}"
+        labels:
+          creator: agnosticd.showroom.ocp4_workload_showroom
+          component: runtime-automation
+          guid: "{{ guid }}"
+          mode: "{{ 'cluster-admin' if ocp4_workload_showroom_runtime_automation_cluster_admin | bool else 'namespace-admin' }}"
+      stringData:
+        kubeconfig: "{{ lookup('template', 'runtime_automation_kubeconfig.yml.j2') }}"
+  register: r_runtime_automation_kubeconfig_secret
+  until: r_runtime_automation_kubeconfig_secret is succeeded
+  retries: "{{ ocp4_workload_showroom_runtime_automation_retries }}"
+  delay: "{{ ocp4_workload_showroom_runtime_automation_retry_delay }}"
+
+- name: Runtime automation identity ready
+  ansible.builtin.debug:
+    msg: >-
+      Runtime automation identity ({{ ocp4_workload_showroom_runtime_automation_sa_name }})
+      ready in namespace {{ _showroom_namespace }}.
