@@ -65,12 +65,19 @@ showroom_antora_ui_bundle_url: ""
 # Override the navbar logo (e.g. "summit" for Red Hat Summit branding; empty = use default)
 showroom_content_antora_navbar_logo: ""
 
-# Master toggle: enable dev mode for all showroom containers (antora, and future content containers)
+# Master toggle: enable dev mode for all showroom containers. Turns on both
+# the Antora dev-mode extension and the Nookbag developer tools (view-switcher
+# QA automation buttons), regardless of the two per-feature toggles below.
 showroom_enable_dev_mode: false
 
 # Enable Antora dev-mode extension (adds attribute pages and unlisted pages to nav).
 # Also enabled when showroom_enable_dev_mode is true.
 showroom_antora_enable_dev_mode: false
+
+# Enable Nookbag developer tools (Healthcheck/E2E buttons in the view-switcher
+# popout that stream qa-automation output). Also enabled when
+# showroom_enable_dev_mode is true.
+showroom_nookbag_enable_dev_mode: false
 
 showroom_primary_path: ""    # this is the postfix to the URL where the UI is available
 showroom_ui_zero_bundle: https://github.com/rhpds/nookbag/releases/download/nookbag-v0.4.0/nookbag-v0.4.0.zip

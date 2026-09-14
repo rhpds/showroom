@@ -35,6 +35,10 @@
           {{ (ocp4_workload_showroom_antora_enable_dev_mode | bool
               or ocp4_workload_showroom_enable_dev_mode | bool)
              | string | lower }}
+        nookbagEnableDevMode: >-
+          {{ (ocp4_workload_showroom_nookbag_enable_dev_mode | bool
+              or ocp4_workload_showroom_enable_dev_mode | bool)
+             | string | lower }}
         zero_touch_bundle: "{{ ocp4_workload_showroom_zero_touch_bundle }}"
       git_cloner:
         image: "{{ ocp4_workload_showroom_git_cloner_image | default(omit, true) }}"
