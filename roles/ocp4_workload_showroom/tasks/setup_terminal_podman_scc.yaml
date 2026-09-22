@@ -21,6 +21,19 @@
 # showroom-deployer Helm chart, terminal/rbac.yaml) via a RoleBinding to
 # system:openshift:scc:{{ scc name }} -- not a change to the shared
 # nested-container SCC itself.
+#
+# IMPORTANT: unlike OpenShift's *built-in* SCCs, creating a custom SCC
+# object does NOT automatically create the matching
+# system:openshift:scc:<name> ClusterRole that grants "use" access to it --
+# confirmed by live testing (Sept 2026): a Deployment's ServiceAccount was
+# rejected with "provider showroom-terminal-podman: Forbidden: not usable
+# by user or serviceaccount" even after the SCC existed and the chart's
+# RoleBinding (referencing that ClusterRole) had already been created,
+# because the ClusterRole itself was missing. `oc adm policy
+# add-scc-to-user` creates both the ClusterRole and a RoleBinding in one
+# step -- since the RoleBinding here is created separately by the Helm
+# chart (terminal/rbac.yaml), this role must create the matching
+# ClusterRole explicitly too.
 
 - name: Create the showroom terminal podman SCC (idempotent, cluster-scoped)
   kubernetes.core.k8s:
@@ -85,3 +98,32 @@
   retries: 5
   delay: 5
   until: r_create_terminal_podman_scc is not failed
+
+# The ClusterRole an SCC's own RBAC "use" grant resolves to. Not created
+# automatically by OpenShift for custom SCCs -- see note above. Matches the
+# exact shape `oc adm policy add-scc-to-user` generates for built-in SCCs.
+- name: Create the matching system:openshift:scc ClusterRole (idempotent)
+  kubernetes.core.k8s:
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: "system:openshift:scc:{{ ocp4_workload_showroom_terminal_podman_scc_name }}"
+        labels:
+          creator: agnosticd.showroom.ocp4_workload_showroom
+      rules:
+        - apiGroups:
+            - security.openshift.io
+          resources:
+            - securitycontextconstraints
+          resourceNames:
+            - "{{ ocp4_workload_showroom_terminal_podman_scc_name }}"
+          verbs:
+            - use
+  register: r_create_terminal_podman_scc_clusterrole
+  retries: 5
+  delay: 5
+  until: r_create_terminal_podman_scc_clusterrole is not failed
