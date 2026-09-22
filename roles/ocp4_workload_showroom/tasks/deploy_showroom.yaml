@@ -6,6 +6,12 @@
 - name: Setup Namespace
   ansible.builtin.include_tasks: setup_namespace.yaml
 
+- name: Setup terminal podman SCC (cluster-scoped, idempotent)
+  when:
+    - ocp4_workload_showroom_terminal_podman_enable | bool
+    - ocp4_workload_showroom_terminal_type in ['showroom', 'ocp-terminal', 'both']
+  ansible.builtin.include_tasks: setup_terminal_podman_scc.yaml
+
 - name: Setup runtime automation identity (SA + kubeconfig Secret)
   when: ocp4_workload_showroom_runtime_automation_enable | bool
   ansible.builtin.include_tasks: setup_runtime_automation_identity.yaml
@@ -69,6 +75,9 @@
           setup: "{{ ocp4_workload_showroom_terminal_storage_enable | bool | string | lower }}"
           pvcSize: "{{ ocp4_workload_showroom_terminal_storage_pvc_size }}"
           storageClass: "{{ ocp4_workload_showroom_terminal_storage_class }}"
+        podman:
+          enabled: "{{ ocp4_workload_showroom_terminal_podman_enable | bool | string | lower }}"
+          sccName: "{{ ocp4_workload_showroom_terminal_podman_scc_name }}"
       wetty:
         setup: "{{ (ocp4_workload_showroom_terminal_type in ['wetty', 'both']) | string | lower }}"
         image: "{{ ocp4_workload_showroom_wetty_image }}"

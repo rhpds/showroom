@@ -40,6 +40,32 @@ ocp4_workload_showroom_terminal_storage_pvc_size: 5Gi
 # Use default StorageClass when empty
 ocp4_workload_showroom_terminal_storage_class: ""
 
+# Full podman (pull/run, with real networking) inside the terminal
+# container, via OpenShift's Kubernetes-native pod-level user namespaces
+# (hostUsers: false) plus a narrowly-scoped custom SCC -- confirmed working
+# by live testing against OpenShift 4.20 (Sept 2026). See
+# showroom-images/ocp-terminal/README.adoc for the full writeup: the
+# minimal capability set is SYS_ADMIN, SYS_CHROOT, NET_ADMIN, NET_RAW
+# (standard RuntimeDefault seccomp -- no Unconfined needed).
+#
+# Requires the target cluster to support Kubernetes user namespaces
+# (OpenShift 4.20+) AND the deploying credentials to have cluster-admin (or
+# at least SCC-create rights) -- appropriate for dedicated/ephemeral
+# per-classroom clusters that this same automation provisions, since the
+# custom SCC below is created with those same credentials. This will fail
+# on shared clusters where the deploying ServiceAccount lacks that.
+#
+# Leave at the default (false) unless a specific lab needs full podman --
+# skopeo copy already covers pull/push under the default SCC for everyone
+# else (see ocp-terminal/README.adoc).
+ocp4_workload_showroom_terminal_podman_enable: false
+
+# Name of the cluster-scoped SCC created (idempotently, once per cluster)
+# when the above is true. Cloned from OpenShift's built-in nested-container
+# SCC with SYS_ADMIN, SYS_CHROOT, NET_ADMIN, NET_RAW added to
+# allowedCapabilities -- not a change to nested-container itself.
+ocp4_workload_showroom_terminal_podman_scc_name: showroom-terminal-podman
+
 # Override ui-config.yml for the content container (JSON or YAML string, empty = use repo default)
 ocp4_workload_showroom_content_ui_config: ""
 
@@ -141,11 +167,11 @@ ocp4_workload_showroom_runtime_automation_cluster_role: cluster-admin
 # Name of the ServiceAccount created in the showroom namespace, and the
 # long-lived token Secret / kubeconfig Secret derived from it.
 ocp4_workload_showroom_runtime_automation_sa_name: runtime-automation
-ocp4_workload_showroom_runtime_automation_token_secret_name: runtime-automation-token
+ocp4_workload_showroom_runtime_automation_token_secret_name: runtime-automation-token  # pragma: allowlist secret
 # zerotouch-automation reads this exact Secret name/key to populate the
 # k8s_kubeconfig extravar -- only change it if you also update the consumer
 # (RUNTIME_AUTOMATION_KUBECONFIG_SECRET_NAME env var).
-ocp4_workload_showroom_runtime_automation_secret_name: runtime-automation-kubeconfig
+ocp4_workload_showroom_runtime_automation_secret_name: runtime-automation-kubeconfig  # pragma: allowlist secret
 
 # Retries/delay (seconds) while waiting for Kubernetes to populate the
 # long-lived token Secret's `data.token` / `data['ca.crt']` keys.
