@@ -80,7 +80,7 @@ showroom_antora_enable_dev_mode: false
 showroom_nookbag_enable_dev_mode: false
 
 showroom_primary_path: ""    # this is the postfix to the URL where the UI is available
-showroom_ui_zero_bundle: https://github.com/rhpds/nookbag/releases/download/nookbag-v0.4.0/nookbag-v0.4.0.zip
+showroom_ui_zero_bundle: https://github.com/rhpds/nookbag/releases/download/nookbag-v0.5.1/nookbag-v0.5.1.zip
 showroom_var_inject: true             # allows turning off var injection, many labs may not need it
 
 showroom_primary_port: 443            # TODO: Validate traefik websecure=8443
