@@ -14,9 +14,14 @@
       kind: Namespace
       metadata:
         name: "{{ _showroom_namespace }}"
-        labels:
-          guid: "{{ guid }}"
-          creator: agnosticd.showroom.ocp4_workload_showroom
+        labels: >-
+          {{
+            {
+              'guid': guid,
+              'creator': 'agnosticd.showroom.ocp4_workload_showroom',
+            }
+            | combine(ocp4_workload_showroom_namespace_extra_labels)
+          }}
   register: r_create_showroom_namespace
   ignore_errors: true
   retries: 20
@@ -36,9 +41,14 @@
       kind: ProjectRequest
       metadata:
         name: "{{ _showroom_namespace }}"
-        labels:
-          guid: "{{ guid }}"
-          creator: agnosticd.showroom.ocp4_workload_showroom
+        labels: >-
+          {{
+            {
+              'guid': guid,
+              'creator': 'agnosticd.showroom.ocp4_workload_showroom',
+            }
+            | combine(ocp4_workload_showroom_namespace_extra_labels)
+          }}
   register: r_create_showroom_project
   retries: 20
   delay: 3
