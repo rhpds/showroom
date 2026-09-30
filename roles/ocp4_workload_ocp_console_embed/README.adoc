@@ -57,6 +57,46 @@ The role deploys:
 - Patches the `oauth-openshift` Route to use `reencrypt` TLS immediately (maintained by the webhook).
 - On clusters where router replicas exceed schedulable worker nodes, scales the IngressController down to prevent rollout deadlocks (reverted on destroy).
 
+== Known Issues
+
+=== Firefox: console loads partially then hangs on a grey "spinner" screen
+
+Symptom: the embedded (or even standalone, non-iframe) OpenShift Console loads
+its shell (left nav, borders) then the main panel never renders. Browser
+console shows a mix of:
+
+- `Firefox can't establish a connection to the server at wss://.../watch=true...`
+- `destroying websocket: ...` / `Attempted to create multiple websockets for <Resource>.`
+- `TypeError: NetworkError when attempting to fetch resource` on plugin manifest
+  and `selfsubjectaccessreviews` calls, right at page load.
+
+This reproduces in Firefox only — Chromium-based browsers are unaffected.
+It is *not* caused by this role, iframe embedding, cookies, session affinity,
+or DNS. Root cause: this console version opens many concurrent long-lived
+websocket watches (one per resource type, multiplied by every enabled
+dynamic plugin — ACM, ODF, kubevirt, monitoring, etc.), and on clusters where
+the router has `ROUTER_DISABLE_HTTP2=true` set (forcing HTTP/1.1 end-to-end),
+Firefox's default per-host connection cap
+(`network.http.max-persistent-connections-per-server`, default `6`) is too
+low to service all of them at once. Firefox errors out requests that can't
+get a free connection slot; Chromium tolerates the same limit by queueing
+instead of erroring, which is why only Firefox is affected.
+
+Workarounds (client-side, not fixable from this role):
+
+- In Firefox, set `network.http.max-persistent-connections-per-server` in
+  `about:config` to a higher value (e.g. `30`), then reload.
+- Use a Chromium-based browser.
+
+The durable fix is cluster-side: enabling end-to-end HTTP/2 on the router
+(i.e. removing/flipping `ROUTER_DISABLE_HTTP2` on the `router-default`
+Deployment env, or via `IngressController` `unsupportedConfigOverrides`)
+would let all these requests multiplex over a single connection and remove
+the ceiling entirely. That setting is cluster-wide (affects every route, not
+just console embedding) and predates this role, so it's a decision for
+whoever owns the base cluster/router config — not something this role
+should change unilaterally.
+
 == Testing
 
 The webhook logic is implemented in a standalone Python script located at `files/webhook.py`.
