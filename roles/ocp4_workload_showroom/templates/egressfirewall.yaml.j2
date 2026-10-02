@@ -10,6 +10,11 @@ spec:
       to:
         dnsName: {{ openshift_api_url | urlsplit('hostname') }}
 {% endif %}
+{% if openshift_cluster_ingress_domain is defined %}
+    - type: Allow
+      to:
+        dnsName: "*.{{ openshift_cluster_ingress_domain }}"
+{% endif %}
     - type: Allow
       to:
         dnsName: {{ ocp4_workload_showroom_content_git_repo | urlsplit('hostname') }}
