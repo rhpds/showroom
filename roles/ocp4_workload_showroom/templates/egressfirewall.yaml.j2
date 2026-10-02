@@ -5,6 +5,21 @@ metadata:
   namespace: {{ _showroom_namespace }}
 spec:
   egress:
+    - type: Allow
+      to:
+        dnsName: {{ ocp4_workload_showroom_content_git_repo | urlsplit('hostname') }}
+{% set _zt_host = ocp4_workload_showroom_zero_touch_bundle | default('') | urlsplit('hostname') %}
+{% if _zt_host %}
+    - type: Allow
+      to:
+        dnsName: {{ _zt_host }}
+{% endif %}
+{% set _ui_host = ocp4_workload_showroom_content_antora_ui_bundle_url | default('') | urlsplit('hostname') %}
+{% if _ui_host %}
+    - type: Allow
+      to:
+        dnsName: {{ _ui_host }}
+{% endif %}
 {% for domain in ocp4_workload_showroom_egress_allow_domains %}
     - type: Allow
       to:

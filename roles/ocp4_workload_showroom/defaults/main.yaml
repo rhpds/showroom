@@ -12,8 +12,11 @@ ocp4_workload_showroom_namespace: "showroom-{{ guid | default('00000') }}"
 ocp4_workload_showroom_secure_tenant: false
 ocp4_workload_showroom_tenant_uuid: "{{ guid }}"
 
-# Domains and CIDRs allowed through the EgressFirewall.
-# Only applies when tenant_mode is true. Empty = deny-all.
+# Extra domains and CIDRs allowed through the EgressFirewall.
+# Only applies when secure_tenant is true.
+# The content git repo, zero_touch_bundle, and antora UI bundle
+# hostnames are auto-allowed; add anything else here.
+# GitHub release downloads also need objects.githubusercontent.com.
 ocp4_workload_showroom_egress_allow_domains: []
 ocp4_workload_showroom_egress_allow_cidrs: []
 
