@@ -72,21 +72,4 @@
     api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
     validate_certs: false
     state: present
-    definition:
-      apiVersion: k8s.ovn.org/v1
-      kind: EgressFirewall
-      metadata:
-        name: default
-        namespace: "{{ _showroom_namespace }}"
-      spec:
-        egress: >-
-          {{
-            [{'type': 'Allow', 'to': {'dnsName': domain}}
-             for domain in (ocp4_workload_showroom_egress_allow_domains | default([]))]
-            +
-            [{'type': 'Allow', 'to': {'cidrSelector': cidr}}
-             for cidr in (ocp4_workload_showroom_egress_allow_cidrs | default([]))]
-            +
-            [{'type': 'Deny', 'to': {'cidrSelector': '0.0.0.0/0'}},
-             {'type': 'Deny', 'to': {'cidrSelector': '::/0'}}]
-          }}
+    definition: "{{ lookup('template', 'egressfirewall.yaml.j2') | from_yaml }}"

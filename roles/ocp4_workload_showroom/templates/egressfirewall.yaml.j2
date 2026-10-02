@@ -1,0 +1,23 @@
+apiVersion: k8s.ovn.org/v1
+kind: EgressFirewall
+metadata:
+  name: default
+  namespace: {{ _showroom_namespace }}
+spec:
+  egress:
+{% for domain in ocp4_workload_showroom_egress_allow_domains %}
+    - type: Allow
+      to:
+        dnsName: {{ domain }}
+{% endfor %}
+{% for cidr in ocp4_workload_showroom_egress_allow_cidrs %}
+    - type: Allow
+      to:
+        cidrSelector: {{ cidr }}
+{% endfor %}
+    - type: Deny
+      to:
+        cidrSelector: 0.0.0.0/0
+    - type: Deny
+      to:
+        cidrSelector: ::/0
