@@ -65,12 +65,6 @@
     r_create_showroom_project is failed and
     'AlreadyExists' not in r_create_showroom_project.msg | default('')
 
-- name: Resolve cluster ingress IP for EgressFirewall
-  when: ocp4_workload_showroom_secure_tenant | bool
-  set_fact:
-    _showroom_cluster_ingress_ip: >-
-      {{ lookup('community.general.dig', openshift_api_url | urlsplit('hostname')) }}
-
 - name: Create EgressFirewall for tenant isolation
   when: ocp4_workload_showroom_secure_tenant | bool
   kubernetes.core.k8s:

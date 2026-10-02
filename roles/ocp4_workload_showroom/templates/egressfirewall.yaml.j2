@@ -5,10 +5,15 @@ metadata:
   namespace: {{ _showroom_namespace }}
 spec:
   egress:
-{% if _showroom_cluster_ingress_ip is defined %}
+{% if openshift_api_url is defined %}
     - type: Allow
       to:
-        cidrSelector: {{ _showroom_cluster_ingress_ip }}/32
+        dnsName: {{ openshift_api_url | urlsplit('hostname') }}
+{% endif %}
+{% if openshift_cluster_ingress_domain is defined %}
+    - type: Allow
+      to:
+        dnsName: "*.{{ openshift_cluster_ingress_domain }}"
 {% endif %}
     - type: Allow
       to:
