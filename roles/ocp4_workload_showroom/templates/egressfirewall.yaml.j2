@@ -13,6 +13,11 @@ spec:
     - type: Allow
       to:
         dnsName: {{ _zt_host }}
+{% if _zt_host == 'github.com' %}
+    - type: Allow
+      to:
+        dnsName: objects.githubusercontent.com
+{% endif %}
 {% endif %}
 {% set _ui_host = ocp4_workload_showroom_content_antora_ui_bundle_url | default('') | urlsplit('hostname') %}
 {% if _ui_host %}
