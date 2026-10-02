@@ -173,7 +173,7 @@
     - (r_router_pre.resources[0].spec.replicas | default(0) | int)
       > (_ocp_console_embed_schedulable_workers | int)
 
-- name: Patch IngressController to remove X-Frame-Options and set CSP
+- name: Patch IngressController to remove X-Frame-Options, set CSP, and force origin-keyed process isolation
   kubernetes.core.k8s:
     api_version: operator.openshift.io/v1
     kind: IngressController
@@ -193,6 +193,11 @@
                   type: Set
                   set:
                     value: "frame-ancestors 'self' https://*.{{ ocp_console_embed_domain }}"
+              - name: Origin-Agent-Cluster
+                action:
+                  type: Set
+                  set:
+                    value: "?1"
 
 - name: Wait for router rollout to complete
   ansible.builtin.include_tasks: wait-router-rollout.yml

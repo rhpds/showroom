@@ -53,9 +53,100 @@ This role deploys the OCP Console Embed workload, which configures the OpenShift
 The role deploys:
 
 - A MutatingWebhook that intercepts Route updates to `oauth-openshift` and forces `reencrypt` TLS.
-- Patches the *default* IngressController to strip `X-Frame-Options` and set `Content-Security-Policy` (this affects all routes served by the default ingress, not just OAuth).
+- Patches the *default* IngressController to strip `X-Frame-Options`, set `Content-Security-Policy`, and set `Origin-Agent-Cluster: ?1` (this affects all routes served by the default ingress, not just OAuth/console — see "Known Issues" below for why the last header is needed).
 - Patches the `oauth-openshift` Route to use `reencrypt` TLS immediately (maintained by the webhook).
 - On clusters where router replicas exceed schedulable worker nodes, scales the IngressController down to prevent rollout deadlocks (reverted on destroy).
+
+== Known Issues
+
+=== Firefox: console loads partially then hangs on a grey "spinner" screen
+
+Symptom: the embedded (or even standalone, non-iframe) OpenShift Console loads
+its shell (left nav, borders) then the main panel never renders. Browser
+console shows a mix of:
+
+- `Firefox can't establish a connection to the server at wss://.../watch=true...`
+- `destroying websocket: ...` / `Attempted to create multiple websockets for <Resource>.`
+- `TypeError: NetworkError when attempting to fetch resource` on plugin manifest
+  and `selfsubjectaccessreviews` calls, right at page load.
+
+This reproduces in Firefox only — Chromium-based browsers are unaffected.
+It is *not* caused by this role, iframe embedding, cookies, session affinity,
+or DNS. Root cause: this console version opens many concurrent long-lived
+websocket watches (one per resource type, multiplied by every enabled
+dynamic plugin — ACM, ODF, kubevirt, monitoring, etc.), and on clusters where
+the router has `ROUTER_DISABLE_HTTP2=true` set (forcing HTTP/1.1 end-to-end),
+Firefox's default per-host connection cap
+(`network.http.max-persistent-connections-per-server`, default `6`) is too
+low to service all of them at once. Firefox errors out requests that can't
+get a free connection slot; Chromium tolerates the same limit by queueing
+instead of erroring, which is why only Firefox is affected.
+
+Workarounds (client-side, not fixable from this role):
+
+- In Firefox, set `network.http.max-persistent-connections-per-server` in
+  `about:config` to a higher value (e.g. `30`), then reload.
+- Use a Chromium-based browser.
+
+The durable fix is cluster-side: enabling end-to-end HTTP/2 on the router
+(i.e. removing/flipping `ROUTER_DISABLE_HTTP2` on the `router-default`
+Deployment env, or via `IngressController` `unsupportedConfigOverrides`)
+would let all these requests multiplex over a single connection and remove
+the ceiling entirely. That setting is cluster-wide (affects every route, not
+just console embedding) and predates this role, so it's a decision for
+whoever owns the base cluster/router config — not something this role
+should change unilaterally.
+
+=== Chrome/Chromium: whole Showroom tab freezes, not just the console panel
+
+Symptom: unlike the Firefox issue above, the *entire* Showroom tab (including
+the left-hand documentation pane and every other embedded app tab, not just
+the console panel) freezes and stops responding. Reported independently on
+two clusters, both times after the console had been open for a while and/or
+reloaded.
+
+Root cause: Chrome's Site Isolation groups all iframes that share the same
+eTLD+1 ("site") into a single renderer process. Showroom's own origin
+(`*.apps.<cluster domain>`) and every embedded app's origin
+(`console-openshift-console.apps...`, `central-stackrox.apps...`,
+`openshift-gitops-server-openshift-gitops.apps...`,
+`backstage-developer-hub-backstage.apps...`, etc.) all share the same
+eTLD+1, so Chrome puts Showroom itself and *all* of its embedded apps in one
+process. A runaway render loop or watch-accumulation bug in any one embedded
+app (the console is the one observed in practice) can then pin that shared
+process, freezing every frame in it — including the parent Showroom page.
+
+Fix: this role sets the `Origin-Agent-Cluster: ?1` response header
+cluster-wide via the same `IngressController` `httpHeaders.actions` used for
+the CSP/X-Frame-Options change above. This opts each origin into Chrome's
+origin-keyed agent clusters, which forces Chrome to give each embedded app's
+origin its own renderer process instead of sharing Showroom's. Confirmed via
+`chrome://process-internals` on a live cluster that this correctly isolates
+the console, RHACS, ArgoCD, and Developer Hub each into their own process,
+separate from Showroom's parent process and from each other.
+
+Verified not to break anything that relies on same-process/same-site
+behavior: a functional smoke test (tab switching across all embedded apps,
+the embedded terminal, and the cross-origin OpenShift OAuth login redirect
+from ArgoCD) showed no regressions with the header live. `document.domain`
+(the one browser mechanism genuinely incompatible with origin-keyed agent
+clusters) is not used anywhere in Showroom, Nookbag, or the theme repos this
+role depends on — cross-frame communication goes through `postMessage`,
+which is unaffected.
+
+Known gaps, not yet validated:
+
+- Memory/process overhead of the extra renderer processes has not been
+  quantified (expect roughly one extra Chrome process per embedded app tab).
+- No long-running soak test on a real live workshop yet — only a short
+  functional smoke test.
+- This does not fix the underlying trigger (a render-loop/watch-accumulation
+  bug in the console itself) — it only stops that bug from taking the rest
+  of the tab down with it. The underlying console bug should still be raised
+  with the upstream `openshift/console` team.
+- Firefox does not implement origin-keyed agent clusters the same way and
+  was not part of this investigation; this fix targets the Chrome/Chromium
+  symptom specifically.
 
 == Testing
 
