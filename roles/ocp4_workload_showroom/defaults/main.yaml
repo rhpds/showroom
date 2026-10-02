@@ -6,8 +6,16 @@
 ocp4_workload_showroom_name: "showroom"
 ocp4_workload_showroom_namespace: "showroom-{{ guid | default('00000') }}"
 
-# Extra labels applied to the showroom namespace on creation.
-ocp4_workload_showroom_namespace_extra_labels: {}
+# Secure tenant. When true, the showroom namespace is labeled with
+# demo.redhat.com/tenant-uuid for ANP isolation and an EgressFirewall
+# with deny-all default is created.
+ocp4_workload_showroom_secure_tenant: false
+ocp4_workload_showroom_tenant_uuid: "{{ guid }}"
+
+# Domains and CIDRs allowed through the EgressFirewall.
+# Only applies when tenant_mode is true. Empty = deny-all.
+ocp4_workload_showroom_egress_allow_domains: []
+ocp4_workload_showroom_egress_allow_cidrs: []
 
 # Override container images (empty = use chart default for the pinned chart version)
 ocp4_workload_showroom_content_image: ""
