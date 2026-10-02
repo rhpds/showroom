@@ -5,11 +5,6 @@ metadata:
   namespace: {{ _showroom_namespace }}
 spec:
   egress:
-{% if openshift_api_url is defined %}
-    - type: Allow
-      to:
-        dnsName: {{ openshift_api_url | urlsplit('hostname') }}
-{% endif %}
     - type: Allow
       to:
         dnsName: {{ ocp4_workload_showroom_content_git_repo | urlsplit('hostname') }}
