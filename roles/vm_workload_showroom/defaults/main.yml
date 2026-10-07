@@ -14,7 +14,7 @@ showroom_reverse_proxy_image: quay.io/rhpds/traefik
 showroom_reverse_proxy_image_tag: v3.7.9
 
 showroom_httpd_image: quay.io/rhpds/showroom-content
-showroom_httpd_image_tag: v1.4.2
+showroom_httpd_image_tag: v1.4.3
 
 showroom_codeserver_image: quay.io/redhat-gpte/showroom/code-server
 showroom_codeserver_image_tag: latest
