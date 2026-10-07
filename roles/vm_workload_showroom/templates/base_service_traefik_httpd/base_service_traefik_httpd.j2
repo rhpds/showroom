@@ -80,6 +80,7 @@ showroom:
     ZT_BUNDLE: "{{ showroom_ui_zero_bundle }}"
     ANTORA_PLAYBOOK: "{{ showroom_antora_playbook_to_use }}"
     SHOWROOM_UI_CONFIG: {{ showroom_content_ui_config | to_json }}
+    SHOWROOM_ENABLE_DEV_MODE: "{{ (showroom_nookbag_enable_dev_mode | bool or showroom_enable_dev_mode | bool) | string | lower }}"
     DOMAIN: "{{ showroom_host }}"
     GUID: "{{ guid }}"
   volumes:

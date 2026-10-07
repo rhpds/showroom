@@ -14,7 +14,7 @@ showroom_reverse_proxy_image: quay.io/rhpds/traefik
 showroom_reverse_proxy_image_tag: v3.7.9
 
 showroom_httpd_image: quay.io/rhpds/showroom-content
-showroom_httpd_image_tag: v1.4.2
+showroom_httpd_image_tag: v1.4.3
 
 showroom_codeserver_image: quay.io/redhat-gpte/showroom/code-server
 showroom_codeserver_image_tag: latest
@@ -65,15 +65,22 @@ showroom_antora_ui_bundle_url: ""
 # Override the navbar logo (e.g. "summit" for Red Hat Summit branding; empty = use default)
 showroom_content_antora_navbar_logo: ""
 
-# Master toggle: enable dev mode for all showroom containers (antora, and future content containers)
+# Master toggle: enable dev mode for all showroom containers. Turns on both
+# the Antora dev-mode extension and the Nookbag developer tools (view-switcher
+# QA automation buttons), regardless of the two per-feature toggles below.
 showroom_enable_dev_mode: false
 
 # Enable Antora dev-mode extension (adds attribute pages and unlisted pages to nav).
 # Also enabled when showroom_enable_dev_mode is true.
 showroom_antora_enable_dev_mode: false
 
+# Enable Nookbag developer tools (Healthcheck/E2E buttons in the view-switcher
+# popout that stream qa-automation output). Also enabled when
+# showroom_enable_dev_mode is true.
+showroom_nookbag_enable_dev_mode: false
+
 showroom_primary_path: ""    # this is the postfix to the URL where the UI is available
-showroom_ui_zero_bundle: https://github.com/rhpds/nookbag/releases/download/nookbag-v0.4.0/nookbag-v0.4.0.zip
+showroom_ui_zero_bundle: https://github.com/rhpds/nookbag/releases/download/nookbag-v0.5.1/nookbag-v0.5.1.zip
 showroom_var_inject: true             # allows turning off var injection, many labs may not need it
 
 showroom_primary_port: 443            # TODO: Validate traefik websecure=8443
