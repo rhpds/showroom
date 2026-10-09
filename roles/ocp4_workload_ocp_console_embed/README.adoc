@@ -23,7 +23,7 @@ This role deploys the OCP Console Embed workload, which configures the OpenShift
 | `ocp_console_embed_name` | `ocp-console-embed` | Base name for all created resources.
 | `ocp_console_embed_image` | `registry.access.redhat.com/ubi10/python-312-minimal:10.1` | Container image for the webhook pod.
 
-| `ocp_console_embed_service_ca_wait_retries` | `30` | Retry count when waiting for the service CA operator to provision a TLS Secret or inject the CA bundle.
+| `ocp_console_embed_service_ca_wait_retries` | `60` | Retry count when waiting for the service CA operator to provision a TLS Secret or inject the CA bundle.
 | `ocp_console_embed_service_ca_wait_delay` | `5` | Delay (seconds) between retries for service CA provisioning.
 
 | `ocp_console_embed_webhook_wait_retries` | `60` | Retry count when waiting for the webhook Deployment pod to become ready.
