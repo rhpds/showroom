@@ -5,8 +5,13 @@ ocp_console_embed_name: ocp-console-embed
 # Use UBI10 Python 3.12 minimal image
 ocp_console_embed_image: "registry.access.redhat.com/ubi10/python-312-minimal:10.1"
 
-# Wait for service CA operator to provision TLS Secret and inject CA bundle
-ocp_console_embed_service_ca_wait_retries: 30
+# Wait for service CA operator to provision TLS Secret and inject CA bundle.
+# On single-node (SNO) clusters, a node reboot/recovery cycle (e.g. an MCO
+# cordon/uncordon) shortly before this role runs can briefly restart every
+# operator pod at once, including the service-ca-operator. Observed recovery
+# in that scenario took ~190s, so the budget below (60 * 5s = 300s) leaves
+# comfortable headroom over the previous 150s budget.
+ocp_console_embed_service_ca_wait_retries: 60
 ocp_console_embed_service_ca_wait_delay: 5
 
 # Wait for webhook Deployment pod to be ready
