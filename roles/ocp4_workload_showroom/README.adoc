@@ -221,6 +221,59 @@ Defaults come from `defaults/main.yaml` unless otherwise noted.
 |Memory limit for the terminal container.
 |===
 
+=== Tenant Security (EgressFirewall)
+
+Set `ocp4_workload_showroom_secure_tenant: true` to label the Showroom
+namespace for AdminNetworkPolicy isolation and create an EgressFirewall with a
+deny-all default. Used by Zero-Touch catalog items; off everywhere else.
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`ocp4_workload_showroom_secure_tenant`
+|boolean
+|`false`
+|Label the namespace with `demo.redhat.com/tenant-uuid` and create a deny-all EgressFirewall.
+
+|`ocp4_workload_showroom_egress_allow_domains`
+|list
+|`[]`
+|Extra hostnames allowed out. The content git repo, zero-touch bundle and Antora UI bundle hostnames are auto-allowed from their URLs.
+
+|`ocp4_workload_showroom_egress_allow_cidrs`
+|list
+|`[]`
+|Extra CIDRs allowed out.
+
+|`ocp4_workload_showroom_egress_allow_cluster_api`
+|boolean
+|`terminal_type == 'showroom'`
+|Allow the Kubernetes API (control-plane nodes, TCP 6443). Required for `oc` in the Showroom terminal.
+
+|`ocp4_workload_showroom_egress_allow_cluster_routes`
+|boolean
+|`terminal_type == 'showroom'`
+|Allow cluster Routes (all nodes, TCP 443). Required for lab steps that reach Gitea or an application's own Route.
+|===
+
+Both cluster holes default to the terminal type, so a Showroom with no
+terminal, or a wetty terminal that SSHes to a bastion, closes them
+automatically.
+
+The API rule has to be a `nodeSelector`. A `dnsName` rule, or a `dig`-resolved
+`/32` of the API hostname, only reaches the external API VIP — not the
+in-cluster `kubernetes.default` ClusterIP that the terminal's in-pod
+kubeconfig actually uses. The `nodeSelector` covers both, because that
+ClusterIP DNATs to the control-plane node addresses on 6443 and the API VIP is
+held by a control-plane node.
+
+Every Route on the cluster resolves to the same shared ingress VIP, so Route
+access is all-or-nothing and cannot be scoped to one tenant's Routes. With it
+on, a tenant that knows another tenant's Route hostname can reach it; the
+application's own authentication is the boundary. The per-tenant
+AdminNetworkPolicy still blocks direct pod-to-pod traffic across tenants.
+
 === Wetty SSH (Bastion Auto-Login)
 
 [cols="1,1,1,3",options="header"]

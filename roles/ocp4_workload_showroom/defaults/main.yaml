@@ -19,6 +19,18 @@ ocp4_workload_showroom_tenant_uuid: "{{ guid }}"
 ocp4_workload_showroom_egress_allow_domains: []
 ocp4_workload_showroom_egress_allow_cidrs: []
 
+# Holes in the deny-all EgressFirewall for the Showroom terminal, which runs
+# `oc` against this cluster and reaches lab applications over their Routes.
+# Only applies when secure_tenant is true.
+#
+# The defaults follow the terminal: a Showroom with no terminal, or a wetty
+# terminal that SSHes to a bastion, has nothing needing cluster access, so
+# the holes close on their own. Set either explicitly to override.
+ocp4_workload_showroom_egress_allow_cluster_api: >-
+  {{ ocp4_workload_showroom_terminal_type == 'showroom' }}
+ocp4_workload_showroom_egress_allow_cluster_routes: >-
+  {{ ocp4_workload_showroom_terminal_type == 'showroom' }}
+
 # Override container images (empty = use chart default for the pinned chart version)
 ocp4_workload_showroom_content_image: ""
 ocp4_workload_showroom_antora_image: ""
