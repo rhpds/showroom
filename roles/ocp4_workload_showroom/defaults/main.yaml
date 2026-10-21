@@ -99,6 +99,31 @@ ocp4_workload_showroom_deployer_chart_version: "2.3.*"
 
 ocp4_workload_showroom_zero_touch_bundle: "https://github.com/rhpds/nookbag/releases/download/nookbag-v0.5.1/nookbag-v0.5.1.zip"
 
+# -------------------------------------------------------------------
+# Pod readiness wait ("Check if showroom pod is running and ready" task
+# in tasks/deploy_showroom.yaml)
+# -------------------------------------------------------------------
+
+# Retries/delay (seconds) while waiting for the showroom pod to reach
+# Running with all containers ready. Raise these for labs with slow
+# image pulls or PVC attach (e.g. cold registry caches, large content
+# repos/Antora builds, or first-time volume provisioning).
+ocp4_workload_showroom_pod_ready_retries: 60
+ocp4_workload_showroom_pod_ready_delay: 10
+
+# Container waiting-state reasons that may mean the pod will not recover
+# on its own. When any init or main container is stuck in one of these
+# reasons for at least ocp4_workload_showroom_fatal_container_restart_threshold
+# restarts, the wait stops early instead of burning the full retry budget above.
+ocp4_workload_showroom_fatal_container_reasons:
+  - CrashLoopBackOff
+
+# Number of restarts to tolerate before treating a container stuck in one of
+# ocp4_workload_showroom_fatal_container_reasons as unrecoverable and failing
+# fast. Tolerates a container that fails once or twice due to a transient
+# issue and then recovers on a later restart.
+ocp4_workload_showroom_fatal_container_restart_threshold: 3
+
 # Deploy a runtime automation runner sidecar container.
 # Adds a /stream/ endpoint for SSE-based automation events.
 ocp4_workload_showroom_runtime_automation_enable: false

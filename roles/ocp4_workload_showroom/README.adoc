@@ -41,8 +41,8 @@ The implementation is split across a small set of task files:
   - Includes `setup_namespace.yaml` to create the namespace (or project on shared clusters).
   - Renders the configured Showroom chart (`ocp4_workload_showroom_chart_package_url`, `ocp4_workload_showroom_deployer_chart_name`, `ocp4_workload_showroom_deployer_chart_version`) with `kubernetes.core.helm_template`.
   - Applies the rendered manifests with `kubernetes.core.k8s`.
-  - Waits for the Showroom pod to exist and become Running with all containers ready.
-  - On failure, fetches pod logs (including init containers) and full pod YAML and fails with a detailed diagnostic message.
+  - Waits for the Showroom pod to exist and become Running with all containers ready. Fails fast if any container has been stuck in a fatal waiting reason (default `CrashLoopBackOff`) for too many restarts, instead of always burning the full retry budget.
+  - On failure, fetches pod logs (including init containers) and full pod YAML, re-checks readiness against that freshest data (in case the pod recovered while logs were being collected), and only then fails with a detailed diagnostic message.
 - `tasks/setup_namespace.yaml`:
   - Creates a `Namespace` labeled with `guid` and `creator`.
   - If that fails (e.g. on shared clusters), falls back to `ProjectRequest`, treating `AlreadyExists` as success.
@@ -330,6 +330,35 @@ If these are not pre-populated, `tasks/prepare_variables.yaml` can auto-fill the
 |string
 |`{{ ocp4_workload_showroom_name }}`
 |Name of the `Route`/`Service` to wait for when publishing the URL.
+|===
+
+=== Pod Readiness Wait
+
+Variables controlling the "Check if showroom pod is running and ready" task and its failure reporting in `tasks/deploy_showroom.yaml`.
+
+[cols="1,1,1,3",options="header"]
+|===
+|Variable |Type |Default |Description
+
+|`ocp4_workload_showroom_pod_ready_retries`
+|integer
+|`60`
+|Retries while waiting for the showroom pod to reach `Running` with all containers ready. Raise this (and the delay below) for labs with slow image pulls or PVC attach (e.g. cold registry caches, large content repos/Antora builds, or first-time volume provisioning).
+
+|`ocp4_workload_showroom_pod_ready_delay`
+|integer
+|`10`
+|Delay (seconds) between pod-readiness retries.
+
+|`ocp4_workload_showroom_fatal_container_reasons`
+|list
+|`[CrashLoopBackOff]`
+|Container `state.waiting.reason` values that may mean the pod will not recover on its own. When any init or main container has been stuck in one of these for at least `ocp4_workload_showroom_fatal_container_restart_threshold` restarts, the readiness wait stops early instead of burning the full retry budget above.
+
+|`ocp4_workload_showroom_fatal_container_restart_threshold`
+|integer
+|`3`
+|Number of restarts to tolerate before treating a container stuck in a fatal reason as unrecoverable and failing fast. Tolerates a container that fails once or twice transiently and then recovers on a later restart.
 |===
 
 === Zero-Touch / Passthrough Features
