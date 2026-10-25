@@ -1,0 +1,129 @@
+---
+# Creates a narrowly-scoped custom SCC (cloned from OpenShift's built-in
+# nested-container SCC, with SYS_ADMIN/SYS_CHROOT/NET_ADMIN/NET_RAW added to
+# allowedCapabilities) so the terminal container can run full podman
+# (pull/run, with real networking) under Kubernetes-native pod-level user
+# namespaces (hostUsers: false). Confirmed working by live testing against
+# OpenShift 4.20.37 (Sept 2026) -- see
+# showroom-images/ocp-terminal/README.adoc for the full test log and the
+# rationale for exactly these four capabilities (SETUID/SETGID are not
+# needed; Unconfined seccomp is not needed).
+#
+# This SCC is cluster-scoped and requires the deploying credentials to have
+# cluster-admin (or at least SCC-create rights) -- appropriate for
+# dedicated/ephemeral per-classroom clusters where this same automation
+# provisions the cluster itself, immediately before this role runs. It will
+# fail on shared clusters where the deploying ServiceAccount lacks
+# SCC-create rights; leave ocp4_workload_showroom_terminal_podman_enable at
+# its default (false) there.
+#
+# Bound to the showroom terminal's own ServiceAccount (created by the
+# showroom-deployer Helm chart, terminal/rbac.yaml) via a RoleBinding to
+# system:openshift:scc:{{ scc name }} -- not a change to the shared
+# nested-container SCC itself.
+#
+# IMPORTANT: unlike OpenShift's *built-in* SCCs, creating a custom SCC
+# object does NOT automatically create the matching
+# system:openshift:scc:<name> ClusterRole that grants "use" access to it --
+# confirmed by live testing (Sept 2026): a Deployment's ServiceAccount was
+# rejected with "provider showroom-terminal-podman: Forbidden: not usable
+# by user or serviceaccount" even after the SCC existed and the chart's
+# RoleBinding (referencing that ClusterRole) had already been created,
+# because the ClusterRole itself was missing. `oc adm policy
+# add-scc-to-user` creates both the ClusterRole and a RoleBinding in one
+# step -- since the RoleBinding here is created separately by the Helm
+# chart (terminal/rbac.yaml), this role must create the matching
+# ClusterRole explicitly too.
+
+- name: Create the showroom terminal podman SCC (idempotent, cluster-scoped)
+  kubernetes.core.k8s:
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    definition:
+      apiVersion: security.openshift.io/v1
+      kind: SecurityContextConstraints
+      metadata:
+        name: "{{ ocp4_workload_showroom_terminal_podman_scc_name }}"
+        labels:
+          creator: agnosticd.showroom.ocp4_workload_showroom
+      allowHostDirVolumePlugin: false
+      allowHostIPC: false
+      allowHostNetwork: false
+      allowHostPID: false
+      allowHostPorts: false
+      allowPrivilegeEscalation: true
+      allowPrivilegedContainer: false
+      allowedCapabilities:
+        - SYS_ADMIN
+        - SYS_CHROOT
+        - NET_ADMIN
+        - NET_RAW
+      defaultAddCapabilities: null
+      fsGroup:
+        type: MustRunAs
+        ranges:
+          - max: 65534
+      groups: []
+      priority: null
+      readOnlyRootFilesystem: false
+      requiredDropCapabilities: null
+      runAsUser:
+        type: MustRunAsRange
+        uidRangeMin: 0
+        uidRangeMax: 65534
+      seLinuxContext:
+        type: MustRunAs
+        seLinuxOptions:
+          type: container_engine_t
+      seccompProfiles:
+        - runtime/default
+      supplementalGroups:
+        type: MustRunAs
+        ranges:
+          - max: 65534
+      userNamespaceLevel: RequirePodLevel
+      users: []
+      volumes:
+        - configMap
+        - csi
+        - downwardAPI
+        - emptyDir
+        - ephemeral
+        - image
+        - persistentVolumeClaim
+        - projected
+        - secret
+  register: r_create_terminal_podman_scc
+  retries: 5
+  delay: 5
+  until: r_create_terminal_podman_scc is not failed
+
+# The ClusterRole an SCC's own RBAC "use" grant resolves to. Not created
+# automatically by OpenShift for custom SCCs -- see note above. Matches the
+# exact shape `oc adm policy add-scc-to-user` generates for built-in SCCs.
+- name: Create the matching system:openshift:scc ClusterRole (idempotent)
+  kubernetes.core.k8s:
+    host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+    api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+    validate_certs: false
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: "system:openshift:scc:{{ ocp4_workload_showroom_terminal_podman_scc_name }}"
+        labels:
+          creator: agnosticd.showroom.ocp4_workload_showroom
+      rules:
+        - apiGroups:
+            - security.openshift.io
+          resources:
+            - securitycontextconstraints
+          resourceNames:
+            - "{{ ocp4_workload_showroom_terminal_podman_scc_name }}"
+          verbs:
+            - use
+  register: r_create_terminal_podman_scc_clusterrole
+  retries: 5
+  delay: 5
+  until: r_create_terminal_podman_scc_clusterrole is not failed
