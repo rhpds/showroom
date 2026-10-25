@@ -64,6 +64,8 @@ spec:
             {{ _showroom_user_data | to_nice_yaml | indent(12) }}
           zero_touch_bundle: {{ ocp4_workload_showroom_zero_touch_bundle | to_json }}
           zero_touch_ui_enabled: "{{ ocp4_workload_showroom_zero_touch_ui_enabled | string | lower }}"
+          enableDevMode: "{{ (ocp4_workload_showroom_antora_enable_dev_mode | bool or ocp4_workload_showroom_enable_dev_mode | bool) | string | lower }}"
+          nookbagEnableDevMode: "{{ (ocp4_workload_showroom_nookbag_enable_dev_mode | bool or ocp4_workload_showroom_enable_dev_mode | bool) | string | lower }}"
         cloud:
           setup: "{{ ('false' if auth_cloud_provider | default('none') == 'none' else 'true') | string | lower }}"
           image: {{ ocp4_workload_showroom_cloud_image | to_json }}
