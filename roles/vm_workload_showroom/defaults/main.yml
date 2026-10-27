@@ -1,6 +1,12 @@
 ---
 showroom_deploy: true
 
+# Do not fail the provision when a showroom deployment step fails. The failure
+# is reported in user info and the remaining showroom steps are skipped. Use
+# when showroom is optional, for example when its content comes from an
+# untrusted user-supplied repo.
+showroom_ignore_deploy_errors: false
+
 # Ensure user data structure is always defined for templating
 f_user_data: {}
 

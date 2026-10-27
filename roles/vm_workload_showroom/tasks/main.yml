@@ -50,6 +50,26 @@
           tags:
             - showroom-verify
 
+      # Default: re-raise so the provision fails as before.
+      # showroom_ignore_deploy_errors: warn and let the provision continue.
+      rescue:
+
+        - name: Fail showroom deployment
+          when: not showroom_ignore_deploy_errors | bool
+          ansible.builtin.fail:
+            msg: >-
+              Showroom deployment failed in task
+              '{{ ansible_failed_task.name | default('unknown') }}':
+              {{ ansible_failed_result.msg | default('unknown error') }}
+
+        - name: Report ignored showroom deployment failure
+          when: showroom_ignore_deploy_errors | bool
+          agnosticd.core.agnosticd_user_info:
+            msg: >-
+              WARNING: Showroom could not be deployed. Failed task
+              '{{ ansible_failed_task.name | default('unknown') }}':
+              {{ ansible_failed_result.msg | default('unknown error') }}
+
 - name: Running workload removal tasks
   when: ACTION | default("provision") == "destroy"
   ansible.builtin.debug:
