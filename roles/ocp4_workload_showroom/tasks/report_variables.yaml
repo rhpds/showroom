@@ -9,12 +9,15 @@
     name: "{{ ocp4_workload_showroom_service_name }}"
     namespace: "{{ _showroom_namespace }}"
   register: r_showroom_route
-  failed_when: r_showroom_route.resources | default([]) | length != 1
-  until: r_showroom_route is successful
-  retries: 100
+  failed_when: >-
+    r_showroom_route.resources | default([]) | length != 1
+    and not ocp4_workload_showroom_ignore_deploy_errors | bool
+  until: r_showroom_route.resources | default([]) | length == 1
+  retries: "{{ 6 if ocp4_workload_showroom_ignore_deploy_errors | bool else 100 }}"
   delay: 5
 
 - name: Output agnosticd_user_data for showroom
+  when: r_showroom_route.resources | default([]) | length == 1
   vars:
     _showroom_url: "https://{{ r_showroom_route.resources[0].spec.host }}/"
   agnosticd.core.agnosticd_user_info:

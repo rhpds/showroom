@@ -6,6 +6,12 @@
 ocp4_workload_showroom_name: "showroom"
 ocp4_workload_showroom_namespace: "showroom-{{ guid | default('00000') }}"
 
+# Do not fail the provision when a showroom deployment step fails. The failure
+# is reported in user info and the remaining showroom steps are skipped. Use
+# when showroom is optional, for example when its content comes from an
+# untrusted user-supplied repo.
+ocp4_workload_showroom_ignore_deploy_errors: false
+
 # Override container images (empty = use chart default for the pinned chart version)
 ocp4_workload_showroom_content_image: ""
 ocp4_workload_showroom_antora_image: ""

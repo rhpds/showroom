@@ -125,6 +125,11 @@ Defaults come from `defaults/main.yaml` unless otherwise noted.
 |`showroom-{{ guid | default('00000') }}`
 |Base namespace for single-user deployments. In multi-user mode each user gets `{{ ocp4_workload_showroom_namespace }}-<user>`.
 
+|`ocp4_workload_showroom_ignore_deploy_errors`
+|bool
+|`false`
+|When `true`, a failed Showroom deploy does not fail the provision. Details are printed and a warning is written to user info. The URL is still reported when the Route exists.
+
 |===
 
 === Content Configuration
