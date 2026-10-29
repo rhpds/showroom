@@ -148,6 +148,11 @@ Defaults come from `defaults/main.yaml` unless otherwise noted.
 |`main`
 |Git branch, tag, or commit to use.
 
+|`ocp4_workload_showroom_content_git_repo_token`
+|string
+|`""`
+|Token for a private HTTPS content repo. It is stored in the Secret `<name>-git-credentials` in the Showroom namespace and sent as an HTTP auth header by `git-cloner`. It is never put in the repo URL. Users with the terminal can read this Secret, so use a read-only, short-lived token.
+
 |`ocp4_workload_showroom_content_antora_playbook`
 |string
 |`site.yml`
@@ -328,7 +333,7 @@ If these are not pre-populated, `tasks/prepare_variables.yaml` can auto-fill the
 
 |`ocp4_workload_showroom_deployer_chart_version`
 |string
-|`"2.3.*"`
+|`"2.4.*"`
 |Chart version or semver range.
 
 |`ocp4_workload_showroom_service_name`

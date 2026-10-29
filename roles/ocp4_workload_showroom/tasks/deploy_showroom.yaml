@@ -12,6 +12,31 @@
       when: ocp4_workload_showroom_runtime_automation_enable | bool
       ansible.builtin.include_tasks: setup_runtime_automation_identity.yaml
 
+    - name: Create git credentials Secret for private content repo
+      when: ocp4_workload_showroom_content_git_repo_token | length > 0
+      no_log: true
+      kubernetes.core.k8s:
+        host: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
+        api_key: "{{ ocp4_workload_showroom_openshift_api_token | default(omit) }}"
+        validate_certs: false
+        definition:
+          apiVersion: v1
+          kind: Secret
+          type: Opaque
+          metadata:
+            name: "{{ ocp4_workload_showroom_name }}-git-credentials"
+            namespace: "{{ _showroom_namespace }}"
+          stringData:
+            GIT_CONFIG_COUNT: "1"
+            GIT_CONFIG_KEY_0: >-
+              http.{{ ocp4_workload_showroom_content_git_repo | regex_replace('^(https?://[^/]+).*$', '\1') }}/.extraheader
+            GIT_CONFIG_VALUE_0: >-
+              Authorization: Basic {{ ('x-access-token:' ~ ocp4_workload_showroom_content_git_repo_token) | b64encode }}
+      register: r_git_credentials_secret
+      retries: 20
+      delay: 3
+      until: r_git_credentials_secret is not failed
+
     - name: Render helm chart with values
       environment:
         K8S_AUTH_HOST: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
@@ -44,6 +69,9 @@
             zero_touch_bundle: "{{ ocp4_workload_showroom_zero_touch_bundle }}"
           git_cloner:
             image: "{{ ocp4_workload_showroom_git_cloner_image | default(omit, true) }}"
+            envFromSecret: >-
+              {{ (ocp4_workload_showroom_name ~ '-git-credentials')
+                 if (ocp4_workload_showroom_content_git_repo_token | length > 0) else '' }}
           antora:
             image: "{{ ocp4_workload_showroom_antora_image | default(omit, true) }}"
           runtime_automation:
