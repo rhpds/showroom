@@ -7,6 +7,22 @@
     quiet: true
     fail_msg: Required variables (guid or ocp4_workload_showroom_content_git_repo) not defined
 
+- name: Record whether authguard secrets were explicitly supplied by the operator
+  # Captured once, before the per-user deploy loop in workload.yml. The
+  # per-user loop re-includes deploy_showroom.yaml (and, in turn,
+  # setup_authguard_secrets.yaml) once per user, and set_fact persists for
+  # the rest of the play across loop iterations. Deciding "should we
+  # generate a fresh value this iteration" from the *current* value of
+  # ocp4_workload_showroom_auth_token/_session_secret would therefore see
+  # the value generated for user1 on every later iteration and wrongly
+  # treat it as operator-supplied, skipping generation for user2+. These
+  # sentinels capture the operator's original intent exactly once, so
+  # setup_authguard_secrets.yaml can keep regenerating per user when the
+  # operator left the values empty.
+  ansible.builtin.set_fact:
+    _showroom_auth_token_supplied: "{{ ocp4_workload_showroom_auth_token | default('', true) | length > 0 }}"
+    _showroom_auth_session_secret_supplied: "{{ ocp4_workload_showroom_auth_session_secret | default('', true) | length > 0 }}"
+
 - name: Set showroom_user_data fact from lookup - global value (before passthrough)
   ansible.builtin.set_fact:
     _showroom_user_data: "{{ _showroom_user_data | combine(lookup('agnosticd.core.agnosticd_user_data', '*')) }}"

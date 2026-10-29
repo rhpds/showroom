@@ -10,6 +10,10 @@
   when: ocp4_workload_showroom_runtime_automation_enable | bool
   ansible.builtin.include_tasks: setup_runtime_automation_identity.yaml
 
+- name: Setup authguard secrets (AUTH_TOKEN / SESSION_SECRET)
+  when: ocp4_workload_showroom_auth_enable | bool
+  ansible.builtin.include_tasks: setup_authguard_secrets.yaml
+
 - name: Render helm chart with values
   environment:
     K8S_AUTH_HOST: "{{ ocp4_workload_showroom_openshift_api_url | default(omit) }}"
@@ -50,6 +54,12 @@
         ansible_user: "{{ ocp4_workload_showroom_runtime_automation_ansible_user }}"
         ansible_password: "{{ ocp4_workload_showroom_runtime_automation_ansible_password }}"
         environment_variables: "{{ ocp4_workload_showroom_runtime_automation_environment_variables }}"
+      authguard:
+        setup: "{{ ocp4_workload_showroom_auth_enable | bool | string | lower }}"
+        image: "{{ ocp4_workload_showroom_auth_image }}"
+        authToken: "{{ ocp4_workload_showroom_auth_token }}"
+        sessionSecret: "{{ ocp4_workload_showroom_auth_session_secret }}"
+        sessionTtlSeconds: "{{ ocp4_workload_showroom_auth_session_ttl_seconds }}"
       guid: "{{ guid }}"
       user: "{{ _showroom_user | default('') }}"
       deployer:
