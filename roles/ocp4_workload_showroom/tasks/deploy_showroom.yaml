@@ -179,7 +179,11 @@
         namespace: "{{ _showroom_namespace }}"
         name: "{{ _showroom_pod_name }}"
       register: r_pod_status
-      retries: "{{ ocp4_workload_showroom_pod_ready_retries | int }}"
+      # Content is the same for every user, so after one user failed with the
+      # switch on, wait only briefly for the others.
+      retries: >-
+        {{ 6 if (_showroom_content_failed | default(false) | bool)
+           else ocp4_workload_showroom_pod_ready_retries | int }}
       delay: "{{ ocp4_workload_showroom_pod_ready_delay | int }}"
       until: >-
         (r_pod_status.resources | length > 0) and
@@ -428,6 +432,11 @@
       when: not ocp4_workload_showroom_ignore_deploy_errors | bool
       ansible.builtin.fail:
         msg: "{{ ansible_failed_result.msg | default(_showroom_deploy_failure_detail, true) }}"
+
+    - name: Remember the failure so later users fail fast
+      when: ocp4_workload_showroom_ignore_deploy_errors | bool
+      ansible.builtin.set_fact:
+        _showroom_content_failed: true
 
     - name: Report ignored showroom deployment failure
       when: ocp4_workload_showroom_ignore_deploy_errors | bool
