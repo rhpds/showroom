@@ -62,13 +62,35 @@
       # and the failure would be silently swallowed instead of re-raised.
       rescue:
 
+        # ansible_failed_result.msg is frequently empty or generic for the
+        # modules most likely to fail here (e.g. containers.podman.podman_container
+        # when the user-supplied content breaks the Antora build) - the real
+        # cause is more often in .stderr/.stdout. Fall through msg -> stderr
+        # -> stdout -> a final placeholder so we don't surface "unknown
+        # error" when better detail was available on the result.
+        - name: Compute showroom deployment failure detail
+          ansible.builtin.set_fact:
+            f_showroom_deploy_failure_detail: >-
+              {{ ansible_failed_result.msg
+                 | default(ansible_failed_result.stderr, true)
+                 | default(ansible_failed_result.stdout, true)
+                 | default('unknown error', true) }}
+          tags:
+            - always
+
+        - name: Print full result of the failed showroom deployment task
+          ansible.builtin.debug:
+            var: ansible_failed_result
+          tags:
+            - always
+
         - name: Fail showroom deployment
           when: not showroom_ignore_deploy_errors | bool
           ansible.builtin.fail:
             msg: >-
               Showroom deployment failed in task
               '{{ ansible_failed_task.name | default('unknown') }}':
-              {{ ansible_failed_result.msg | default('unknown error') }}
+              {{ f_showroom_deploy_failure_detail }}
           tags:
             - always
 
@@ -78,7 +100,7 @@
             msg: >-
               WARNING: Showroom could not be deployed. Failed task
               '{{ ansible_failed_task.name | default('unknown') }}':
-              {{ ansible_failed_result.msg | default('unknown error') }}
+              {{ f_showroom_deploy_failure_detail }}
           tags:
             - always
 
