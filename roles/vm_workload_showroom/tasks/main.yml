@@ -38,6 +38,12 @@
           tags:
             - showroom-render
 
+        - name: Setup authguard secrets (AUTH_TOKEN / SESSION_SECRET)
+          when: showroom_auth_enable | bool
+          ansible.builtin.include_tasks: 35-showroom-authguard-secrets.yml
+          tags:
+            - showroom-authguard
+
         - name: Create, enable, start showroom systemd service
           ansible.builtin.include_tasks:
             file: 50-showroom-service.yml

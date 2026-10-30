@@ -23,6 +23,14 @@ services:
 
 {% endif %}
 
+{% if showroom_auth_enable | default(false) | bool %}
+{% macro fake_indent_op() %}
+{% include 'service_authguard/service_authguard.j2' ignore missing %}
+{% endmacro %}
+  {{ fake_indent_op() | indent(2) }}
+
+{% endif %}
+
 {% for service in showroom_tab_services %}
 {% macro fake_indent_op() %}
 {% include 'service_' + service + '/service_' + service + '.j2' ignore missing %}

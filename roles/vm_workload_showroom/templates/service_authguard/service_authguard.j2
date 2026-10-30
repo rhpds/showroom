@@ -1,0 +1,25 @@
+{% set _provider = (showroom_tls_provider | default(certbot_cert_manager_provider, true) | default('zerossl')) | lower %}
+{% set _entrypoint = 'web' if _provider == 'none' else 'websecure' %}
+authguard:
+  image: {{ showroom_auth_image }}:{{ showroom_auth_image_tag }}
+  container_name: authguard
+  hostname: authguard
+  restart: always
+  environment:
+    AUTH_TOKEN: "{{ showroom_auth_token }}"
+    SESSION_SECRET: "{{ showroom_auth_session_secret }}"
+    SESSION_TTL_SECONDS: "{{ showroom_auth_session_ttl_seconds }}"
+  labels:
+    - "traefik.enable=true"
+    - "traefik.http.services.authguard.loadbalancer.server.port=8080"
+    - "traefik.http.routers.authguard-login.entrypoints={{ _entrypoint }}"
+{% if _provider != 'none' %}
+    - "traefik.http.routers.authguard-login.tls.certresolver={{ _provider }}"
+{% endif %}
+    - "traefik.http.routers.authguard-login.rule=Host(`{{ showroom_host }}`) && PathPrefix(`/login`)"
+    - "traefik.http.routers.authguard-login.service=authguard"
+    - "traefik.http.routers.authguard-login.priority=100"
+    - "traefik.http.middlewares.authguard.forwardauth.address=http://authguard:8080/verify"
+    - "traefik.http.middlewares.authguard.forwardauth.trustforwardheader=false"
+    - "traefik.http.middlewares.authguard.forwardauth.preservelocationheader=true"
+    - "traefik.http.middlewares.authguard.forwardauth.addauthcookiestoresponse=nookbag_auth"

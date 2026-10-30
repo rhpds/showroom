@@ -23,6 +23,17 @@ showroom_tty_image: quay.io/rhpds/wetty
 showroom_tty_image_tag: v3.2.1
 
 # ----------------------------------------------------------------------
+# authguard: ForwardAuth gate (shared deploy-time token -> signed cookie)
+# ----------------------------------------------------------------------
+showroom_auth_enable: false
+showroom_auth_image: quay.io/rhpds/authguard
+showroom_auth_image_tag: v0.1.0
+# Auto-generated in 35-showroom-authguard-secrets.yml if left empty.
+showroom_auth_token: ""
+showroom_auth_session_secret: ""
+showroom_auth_session_ttl_seconds: 43200
+
+# ----------------------------------------------------------------------
 # Runtime automation runner (zt-runner)
 # Adds a /stream/ endpoint for SSE-based automation events.
 # ----------------------------------------------------------------------
