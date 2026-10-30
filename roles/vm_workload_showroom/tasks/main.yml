@@ -50,6 +50,60 @@
           tags:
             - showroom-verify
 
+      # Default: re-raise so the provision fails as before.
+      # showroom_ignore_deploy_errors: warn and let the provision continue.
+      #
+      # Tagged "always" on every task below: every task in the block above
+      # carries its own stage tag (showroom-render, showroom-verify, etc.) for
+      # selective `--tags` re-runs during development. Tag selection
+      # supersedes block error handling in Ansible, so without "always" a
+      # `--tags showroom-render`-style run whose selected task fails would
+      # skip these rescue tasks entirely (untagged tasks are filtered out)
+      # and the failure would be silently swallowed instead of re-raised.
+      rescue:
+
+        # ansible_failed_result.msg is frequently empty or generic for the
+        # modules most likely to fail here (e.g. containers.podman.podman_container
+        # when the user-supplied content breaks the Antora build) - the real
+        # cause is more often in .stderr/.stdout. Fall through msg -> stderr
+        # -> stdout -> a final placeholder so we don't surface "unknown
+        # error" when better detail was available on the result.
+        - name: Compute showroom deployment failure detail
+          ansible.builtin.set_fact:
+            f_showroom_deploy_failure_detail: >-
+              {{ ansible_failed_result.msg
+                 | default(ansible_failed_result.stderr, true)
+                 | default(ansible_failed_result.stdout, true)
+                 | default('unknown error', true) }}
+          tags:
+            - always
+
+        - name: Print full result of the failed showroom deployment task
+          ansible.builtin.debug:
+            var: ansible_failed_result
+          tags:
+            - always
+
+        - name: Fail showroom deployment
+          when: not showroom_ignore_deploy_errors | bool
+          ansible.builtin.fail:
+            msg: >-
+              Showroom deployment failed in task
+              '{{ ansible_failed_task.name | default('unknown') }}':
+              {{ f_showroom_deploy_failure_detail }}
+          tags:
+            - always
+
+        - name: Report ignored showroom deployment failure
+          when: showroom_ignore_deploy_errors | bool
+          agnosticd.core.agnosticd_user_info:
+            msg: >-
+              WARNING: Showroom could not be deployed. Failed task
+              '{{ ansible_failed_task.name | default('unknown') }}':
+              {{ f_showroom_deploy_failure_detail }}
+          tags:
+            - always
+
 - name: Running workload removal tasks
   when: ACTION | default("provision") == "destroy"
   ansible.builtin.debug:

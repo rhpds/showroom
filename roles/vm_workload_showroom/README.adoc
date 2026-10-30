@@ -132,6 +132,11 @@ Defaults live in `defaults/main.yml`. This section lists the most important inpu
 |`true`
 |Guard for the whole role (set to `false` to skip deployment).
 
+|`showroom_ignore_deploy_errors`
+|bool
+|`false`
+|When `true`, a failed deployment step does not fail the provision. The remaining steps are skipped and the error is reported in user info. Use when showroom is optional.
+
 |`showroom_host`
 |string
 |_none_ (derived from AgnosticD when available)
