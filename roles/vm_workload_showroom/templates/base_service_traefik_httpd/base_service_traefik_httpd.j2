@@ -96,3 +96,6 @@ showroom:
     - "traefik.http.routers.showroom.rule=Host(`{{ showroom_host }}`) && PathPrefix(`/`)"
     - "traefik.http.routers.showroom.service=showroom"
     - "traefik.http.routers.showroom.priority=1"
+{% if showroom_auth_enable | default(false) | bool %}
+    - "traefik.http.routers.showroom.middlewares=authguard"
+{% endif %}

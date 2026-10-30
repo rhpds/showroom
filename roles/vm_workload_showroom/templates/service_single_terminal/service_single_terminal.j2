@@ -38,3 +38,6 @@ terminal-01:
     - "traefik.http.routers.terminal.rule=Host(`{{ showroom_host }}`) && PathPrefix(`/wetty`)"
     - "traefik.http.routers.terminal.service=terminal"
     - "traefik.http.routers.terminal.priority=10"
+{% if showroom_auth_enable | default(false) | bool %}
+    - "traefik.http.routers.terminal.middlewares=authguard"
+{% endif %}

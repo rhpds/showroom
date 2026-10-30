@@ -33,13 +33,20 @@ ansible-runner-api:
 {% endif %}
     - "traefik.http.routers.runner-stream.rule=Host(`{{ showroom_host }}`) && PathPrefix(`/stream`)"
     - "traefik.http.routers.runner-stream.service=runner"
+{% if showroom_auth_enable | default(false) | bool %}
+    - "traefik.http.routers.runner-stream.middlewares=authguard"
+{% endif %}
     - "traefik.http.routers.runner-stream.priority=50"
     - "traefik.http.routers.runner-api.entrypoints={{ _entrypoint }}"
 {% if _provider != 'none' %}
     - "traefik.http.routers.runner-api.tls.certresolver={{ _provider }}"
 {% endif %}
     - "traefik.http.routers.runner-api.rule=Host(`{{ showroom_host }}`) && PathPrefix(`/runner`)"
+{% if showroom_auth_enable | default(false) | bool %}
+    - "traefik.http.routers.runner-api.middlewares=authguard,runner-api-stripprefix"
+{% else %}
     - "traefik.http.routers.runner-api.middlewares=runner-api-stripprefix"
+{% endif %}
     - "traefik.http.middlewares.runner-api-stripprefix.stripprefix.prefixes=/runner"
     - "traefik.http.routers.runner-api.service=runner"
     - "traefik.http.routers.runner-api.priority=40"
