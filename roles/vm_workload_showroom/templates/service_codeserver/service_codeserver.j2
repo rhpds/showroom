@@ -24,7 +24,7 @@ codeserver:
 {% endif %}
     - "traefik.http.routers.vscode.rule=Host(`{{ showroom_host }}`) && PathPrefix(`/codeserver`)"
 {% if showroom_auth_enable | default(false) | bool %}
-    - "traefik.http.routers.vscode.middlewares=vscode-stripprefix,authguard"
+    - "traefik.http.routers.vscode.middlewares=authguard,vscode-stripprefix"
 {% else %}
     - "traefik.http.routers.vscode.middlewares=vscode-stripprefix"
 {% endif %}
