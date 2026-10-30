@@ -23,3 +23,6 @@ terminal-02:
     - "traefik.http.routers.terminal2.tls.certresolver={{ _provider }}"
 {% endif %}
     - "traefik.http.routers.terminal2.rule=Host(`{{ showroom_host }}`) && PathPrefix(`/terminal2`)"
+{% if showroom_auth_enable | default(false) | bool %}
+    - "traefik.http.routers.terminal2.middlewares=authguard"
+{% endif %}

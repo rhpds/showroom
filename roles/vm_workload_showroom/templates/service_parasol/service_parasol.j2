@@ -12,5 +12,12 @@ parasol:
     - QUARKUS_HTTP_SSL_CERTIFICATE_KEY_FILES=/opt/certs/{{ showroom_parasol_host }}.key
     - QUARKUS_HTTP_INSECURE_REQUESTS=disabled
   labels:
+    # NOTE: parasol bypasses Traefik entirely (direct host port 8005 with its
+    # own Quarkus-managed TLS cert extracted from acme.json). traefik.enable=false
+    # means Traefik never creates any router for this container, so the
+    # authguard forwardAuth middleware (see service_authguard.j2) cannot gate
+    # it via a router label the way it gates showroom/terminal/etc. If parasol
+    # needs to sit behind authguard, it requires a separate design (e.g.
+    # routing it through Traefik with TLS passthrough, or an app-level check).
     - "traefik.enable=false"
 
