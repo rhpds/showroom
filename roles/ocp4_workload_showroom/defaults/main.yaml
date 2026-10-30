@@ -6,14 +6,6 @@
 ocp4_workload_showroom_name: "showroom"
 ocp4_workload_showroom_namespace: "showroom-{{ guid | default('00000') }}"
 
-# Do not fail the provision when a showroom deployment step fails. The failure
-# is reported in user info and the remaining showroom steps are skipped. The
-# role also does not wait for the showroom pod to become ready, so a pod that
-# fails later (for example a bad content repo) is not reported. Use when
-# showroom is optional, for example when its content comes from an untrusted
-# user-supplied repo.
-ocp4_workload_showroom_ignore_deploy_errors: false
-
 # Override container images (empty = use chart default for the pinned chart version)
 ocp4_workload_showroom_content_image: ""
 ocp4_workload_showroom_antora_image: ""
@@ -114,6 +106,12 @@ ocp4_workload_showroom_zero_touch_bundle: "https://github.com/rhpds/nookbag/rele
 # Pod readiness wait ("Check if showroom pod is running and ready" task
 # in tasks/deploy_showroom.yaml)
 # -------------------------------------------------------------------
+
+# Wait for the showroom pod to become ready and fail the provision if it
+# does not. Set to false when showroom is optional, for example when its
+# content comes from a user-supplied repo. Content errors (clone, Antora
+# build) then do not fail the provision and are not reported.
+ocp4_workload_showroom_wait_for_pod: true
 
 # Retries/delay (seconds) while waiting for the showroom pod to reach
 # Running with all containers ready. Raise these for labs with slow
