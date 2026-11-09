@@ -14,6 +14,20 @@ ocp4_workload_showroom_git_cloner_image: ""
 # Content repository to be rendered as lab instructions
 ocp4_workload_showroom_content_git_repo: https://github.com/rhpds/showroom-template.git
 ocp4_workload_showroom_content_git_repo_ref: main
+# Token for a private HTTPS content repo. It is stored in a Secret in the
+# showroom namespace and sent by git-cloner as an HTTP auth header; it is
+# never put in the repo URL. Requires chart git_cloner image v1.2.0+.
+ocp4_workload_showroom_content_git_repo_token: ""
+# How the token above reaches git-cloner:
+#   "file" (default) - the Secret is mounted as a read-only volume and
+#            GIT_TOKEN_FILE points at it, keeping the token out of
+#            `oc get pod -o yaml` / `kubectl describe pod`.
+#   "env"  - set as a literal GIT_TOKEN env var via secretKeyRef. Use this
+#            only if pinning a git_cloner image older than v1.2.0.
+# Either way, anyone with `get secrets` access in the showroom namespace
+# (which the terminal's `edit` ServiceAccount binding grants) can still read
+# the Secret object directly -- use a read-only, short-lived token.
+ocp4_workload_showroom_content_git_repo_token_mount_mode: "file"
 
 # Which Antora Playbook to use in the content repo
 ocp4_workload_showroom_content_antora_playbook: site.yml

@@ -143,6 +143,16 @@ Defaults come from `defaults/main.yaml` unless otherwise noted.
 |`main`
 |Git branch, tag, or commit to use.
 
+|`ocp4_workload_showroom_content_git_repo_token`
+|string
+|`""`
+|Token for a private HTTPS content repo. It is stored in the Secret `<name>-git-token` in the Showroom namespace and sent as an HTTP auth header by `git-cloner`. It is never put in the repo URL. Requires chart `git_cloner` image v1.2.0+. Users with the terminal can read this Secret, so use a read-only, short-lived token.
+
+|`ocp4_workload_showroom_content_git_repo_token_mount_mode`
+|string
+|`file`
+|How the token reaches `git-cloner`. `file` (default) mounts the Secret as a read-only volume and sets `GIT_TOKEN_FILE`, keeping the token out of `oc get pod -o yaml` / `kubectl describe pod`. `env` sets a literal `GIT_TOKEN` env var instead -- use only when pinning a `git_cloner` image older than v1.2.0.
+
 |`ocp4_workload_showroom_content_antora_playbook`
 |string
 |`site.yml`
