@@ -350,6 +350,11 @@ Variables controlling the "Check if showroom pod is running and ready" task and 
 |===
 |Variable |Type |Default |Description
 
+|`ocp4_workload_showroom_wait_for_pod`
+|bool
+|`true`
+|Wait for the Showroom pod to become ready, and fail the provision if it does not. Set to `false` when content errors must not fail the provision.
+
 |`ocp4_workload_showroom_pod_ready_retries`
 |integer
 |`60`
