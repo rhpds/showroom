@@ -34,7 +34,7 @@ showroom_tty_image_tag: v3.2.1
 # ----------------------------------------------------------------------
 showroom_runtime_automation_enable: false
 showroom_runtime_automation_image: quay.io/rhpds/zerotouch-automation
-showroom_runtime_automation_image_tag: v1.3.1
+showroom_runtime_automation_image_tag: v1.4.0
 showroom_runtime_automation_port: 8501
 showroom_runtime_automation_environment_variables: {}
 
@@ -86,7 +86,7 @@ showroom_antora_enable_dev_mode: false
 showroom_nookbag_enable_dev_mode: false
 
 showroom_primary_path: ""    # this is the postfix to the URL where the UI is available
-showroom_ui_zero_bundle: https://github.com/rhpds/nookbag/releases/download/nookbag-v0.5.1/nookbag-v0.5.1.zip
+showroom_ui_zero_bundle: https://github.com/rhpds/nookbag/releases/download/nookbag-v0.6.0/nookbag-v0.6.0.zip
 showroom_var_inject: true             # allows turning off var injection, many labs may not need it
 
 showroom_primary_port: 443            # TODO: Validate traefik websecure=8443
