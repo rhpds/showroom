@@ -111,7 +111,7 @@ ocp4_workload_showroom_deployer_chart_name: showroom-single-pod
 # 2.4.0+ required for git_cloner.tokenSecret / tokenMountMode (private content repos).
 ocp4_workload_showroom_deployer_chart_version: "2.4.*"
 
-ocp4_workload_showroom_zero_touch_bundle: "https://github.com/rhpds/nookbag/releases/download/nookbag-v0.5.1/nookbag-v0.5.1.zip"
+ocp4_workload_showroom_zero_touch_bundle: "https://github.com/rhpds/nookbag/releases/download/nookbag-v0.6.0/nookbag-v0.6.0.zip"
 
 # -------------------------------------------------------------------
 # Pod readiness wait ("Check if showroom pod is running and ready" task
@@ -154,7 +154,7 @@ ocp4_workload_showroom_runtime_automation_enable: false
 # v1.3.3 additionally fixes the /stream/{module}/{stage} endpoint to pass
 # k8s_kubeconfig (and other USER_DATA extravars) through to streamed playbooks.
 # Override to "" to fall back to the chart's own default image.
-ocp4_workload_showroom_runtime_automation_image: "quay.io/rhpds/zerotouch-automation:v1.3.3"
+ocp4_workload_showroom_runtime_automation_image: "quay.io/rhpds/zerotouch-automation:v1.4.0"
 ocp4_workload_showroom_runtime_automation_environment_variables: {}
 # Ansible credentials for runtime automation playbooks that target remote hosts.
 # Optional; only needed when playbooks SSH to remote hosts.
