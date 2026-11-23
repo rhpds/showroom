@@ -5,6 +5,35 @@ metadata:
   namespace: {{ _showroom_namespace }}
 spec:
   egress:
+{% if ocp4_workload_showroom_egress_allow_cluster_api | bool %}
+    # Kubernetes API, for `oc` in the Showroom terminal. One rule covers both
+    # paths: the in-cluster kubernetes.default ClusterIP DNATs to the
+    # control-plane node addresses on 6443, and the external API VIP is held
+    # by a control-plane node.
+    #
+    # A dnsName or dig-resolved /32 of the API hostname does NOT work here --
+    # it only reaches the API VIP, never the in-cluster ClusterIP that the
+    # terminal's in-pod kubeconfig uses.
+    - type: Allow
+      to:
+        nodeSelector:
+          matchLabels:
+            node-role.kubernetes.io/control-plane: ""
+      ports:
+        - protocol: TCP
+          port: 6443
+{% endif %}
+{% if ocp4_workload_showroom_egress_allow_cluster_routes | bool %}
+    # Cluster Routes, for lab steps that curl an application's own Route or
+    # clone from Gitea. Every Route resolves to the shared ingress VIP, so
+    # this cannot be narrowed to one tenant's Routes.
+    - type: Allow
+      to:
+        nodeSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+{% endif %}
     - type: Allow
       to:
         dnsName: {{ ocp4_workload_showroom_content_git_repo | urlsplit('hostname') }}
