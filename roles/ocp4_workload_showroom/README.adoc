@@ -248,18 +248,19 @@ deny-all default. Used by Zero-Touch catalog items; off everywhere else.
 
 |`ocp4_workload_showroom_egress_allow_cluster_api`
 |boolean
-|`terminal_type == 'showroom'`
+|`terminal_type in ['ocp-terminal', 'showroom', 'both']`
 |Allow the Kubernetes API (control-plane nodes, TCP 6443). Required for `oc` in the Showroom terminal.
 
 |`ocp4_workload_showroom_egress_allow_cluster_routes`
 |boolean
-|`terminal_type == 'showroom'`
+|`terminal_type in ['ocp-terminal', 'showroom', 'both']`
 |Allow cluster Routes (all nodes, TCP 443). Required for lab steps that reach Gitea or an application's own Route.
 |===
 
-Both cluster holes default to the terminal type, so a Showroom with no
-terminal, or a wetty terminal that SSHes to a bastion, closes them
-automatically.
+Both cluster holes default to the terminal type: any terminal type that
+deploys the ocp-terminal container (`ocp-terminal`, its deprecated alias
+`showroom`, or `both`) opens them. A Showroom with no terminal, or a wetty-only
+terminal that SSHes to a bastion, closes them automatically.
 
 The API rule has to be a `nodeSelector`. A `dnsName` rule, or a `dig`-resolved
 `/32` of the API hostname, only reaches the external API VIP — not the
